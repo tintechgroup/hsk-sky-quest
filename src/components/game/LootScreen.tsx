@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useReducer } from "react";
 
@@ -135,6 +135,9 @@ export default function LootScreen({
       {
         "fifty-fifty": 0,
         hint: 0,
+        pinyin: 0,
+        "extra-time": 0,
+        retry: 0,
       },
     );
 
@@ -377,8 +380,10 @@ export default function LootScreen({
 
           <div className="space-y-3">
             {Object.values(items).map((item) => {
-              const quantity =
-                inventory[item.id];
+              const itemId =
+                item.id as keyof Inventory;
+
+              const quantity = inventory[itemId];
 
               return (
                 <div

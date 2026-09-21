@@ -1,4 +1,4 @@
-"use client";
+
 
 import {
   ComposableMap,
@@ -424,16 +424,7 @@ export default function ChinaFlightMap({
                     strokeWidth={2.3}
                     filter="url(#chinaShadow)"
                     style={{
-                      default: {
-                        outline: "none",
-                      },
-                      hover: {
-                        fill: "url(#chinaColorMap)",
-                        outline: "none",
-                      },
-                      pressed: {
-                        outline: "none",
-                      },
+                      outline: "none",
                     }}
                   />
                 );

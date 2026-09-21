@@ -1,20 +1,25 @@
 import dns from "node:dns";
 import mongoose from "mongoose";
 
-// Ép Node.js dùng DNS công cộng để tra bản ghi MongoDB SRV.
-dns.setServers([
-  "8.8.8.8",
-  "1.1.1.1",
-]);
+/*
+ * Máy Windows từng gặp lỗi querySrv ECONNREFUSED.
+ * Chỉ ép DNS khi chạy trên máy local.
+ * Khi deploy Vercel, hệ thống dùng DNS của Vercel.
+ */
+if (!process.env.VERCEL) {
+  try {
+    dns.setServers([
+      "8.8.8.8",
+      "1.1.1.1",
+    ]);
 
-dns.setDefaultResultOrder("ipv4first");
-
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  throw new Error(
-    "Chưa khai báo MONGODB_URI trong file .env.local",
-  );
+    dns.setDefaultResultOrder("ipv4first");
+  } catch (error) {
+    console.warn(
+      "Không thể thiết lập DNS:",
+      error,
+    );
+  }
 }
 
 interface MongooseCache {
@@ -36,27 +41,49 @@ const cached: MongooseCache =
 globalWithMongoose.mongooseCache = cached;
 
 export default async function connectMongoDB() {
+  /*
+   * Khai báo bên trong hàm để Next.js không lỗi
+   * khi kiểm tra TypeScript trong quá trình build.
+   */
+  const mongoUri = process.env.MONGODB_URI;
+
+  if (!mongoUri) {
+    throw new Error(
+      "Chưa khai báo biến MONGODB_URI",
+    );
+  }
+
   if (cached.connection) {
     return cached.connection;
   }
 
   if (!cached.promise) {
     cached.promise = mongoose.connect(
-      MONGODB_URI,
+      mongoUri as string,
       {
         dbName: "hsk_sky_quest",
         bufferCommands: false,
         serverSelectionTimeoutMS: 15000,
+        connectTimeoutMS: 15000,
+        socketTimeoutMS: 45000,
       },
     );
   }
 
   try {
-    cached.connection = await cached.promise;
+    cached.connection =
+      await cached.promise;
+
     return cached.connection;
   } catch (error) {
-    cached.promise = null;
     cached.connection = null;
+    cached.promise = null;
+
+    console.error(
+      "Lỗi kết nối MongoDB:",
+      error,
+    );
+
     throw error;
   }
 }
