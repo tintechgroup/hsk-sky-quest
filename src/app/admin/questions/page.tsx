@@ -1,268 +1,1189 @@
 "use client";
 
 import Link from "next/link";
+
 import {
+  FormEvent,
+  useCallback,
   useEffect,
   useMemo,
   useState,
 } from "react";
 
-import type { FormEvent } from "react";
-import type { HSKLevel } from "@/types/game";
+type HSKLevel = 3 | 4 | 5 | 6;
 
-const QUESTION_STORAGE_KEY =
-  "hsk-admin-question-bank";
-
-const LEVELS: HSKLevel[] = [3, 4, 5, 6];
-
-const TOPICS = [
-  "Từ vựng",
-  "Ngữ pháp",
-  "Đọc hiểu",
-  "Văn hóa",
-  "Địa lý",
-];
-
-interface AdminQuestion {
+interface Region {
   id: string;
+  name: string;
+  chineseName: string;
+  pinyin: string;
+  isActive: boolean;
+}
+
+interface Question {
+  id: string;
+
+  regionId: string;
+  regionName: string;
+
   level: HSKLevel;
+
   topic: string;
   question: string;
   pinyin: string;
+
   options: string[];
   correctIndex: number;
+
   hint: string;
   explanation: string;
-  createdAt: string;
-  updatedAt: string;
+
+  isActive: boolean;
+
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface QuestionForm {
+  regionId: string;
+
   level: HSKLevel;
+
   topic: string;
+
   question: string;
+
   pinyin: string;
-  optionA: string;
-  optionB: string;
-  optionC: string;
-  optionD: string;
+
+  options: [
+    string,
+    string,
+    string,
+    string,
+  ];
+
   correctIndex: number;
+
   hint: string;
+
   explanation: string;
+
+  isActive: boolean;
 }
 
+interface ApiResult {
+  success?: boolean;
+  message?: string;
+  data?: unknown;
+  questions?: unknown;
+  regions?: unknown;
+}
+
+const HSK_LEVELS: HSKLevel[] = [
+  3,
+  4,
+  5,
+  6,
+];
+
+const ANSWER_LABELS = [
+  "A",
+  "B",
+  "C",
+  "D",
+];
+
 const INITIAL_FORM: QuestionForm = {
+  regionId: "",
+
   level: 3,
-  topic: "Từ vựng",
+
+  topic: "",
+
   question: "",
+
   pinyin: "",
-  optionA: "",
-  optionB: "",
-  optionC: "",
-  optionD: "",
+
+  options: [
+    "",
+    "",
+    "",
+    "",
+  ],
+
   correctIndex: 0,
+
   hint: "",
+
   explanation: "",
+
+  isActive: true,
 };
 
-export default function AdminQuestionsPage() {
-  const [questions, setQuestions] = useState<
-    AdminQuestion[]
-  >([]);
+function getString(
+  value: unknown,
+  fallback = "",
+) {
+  return typeof value === "string"
+    ? value.trim()
+    : fallback;
+}
 
-  const [form, setForm] =
-    useState<QuestionForm>(INITIAL_FORM);
+async function readResponse(
+  response: Response,
+): Promise<ApiResult> {
+  try {
+    return await response.json();
+  } catch {
+    return {
+      success: false,
+      message:
+        "Máy chủ trả về dữ liệu không hợp lệ.",
+    };
+  }
+}
 
-  const [editingId, setEditingId] =
-    useState<string | null>(null);
-
-  const [message, setMessage] = useState("");
-
-  const [filterLevel, setFilterLevel] = useState<
-    HSKLevel | "all"
-  >("all");
-
-  const [searchKeyword, setSearchKeyword] =
-    useState("");
-
-  useEffect(() => {
-    try {
-      const savedData = window.localStorage.getItem(
-        QUESTION_STORAGE_KEY,
-      );
-
-      if (!savedData) return;
-
-      const parsedData: unknown =
-        JSON.parse(savedData);
-
-      if (Array.isArray(parsedData)) {
-        setQuestions(parsedData);
-      }
-    } catch (error) {
-      console.error(
-        "Không thể đọc ngân hàng câu hỏi:",
-        error,
-      );
-    }
-  }, []);
-
-  const filteredQuestions = useMemo(() => {
-    const normalizedKeyword = searchKeyword
-      .trim()
-      .toLowerCase();
-
-    return questions
-      .filter((question) => {
-        if (filterLevel === "all") return true;
-
-        return question.level === filterLevel;
-      })
-      .filter((question) => {
-        if (!normalizedKeyword) return true;
-
-        return (
-          question.question
-            .toLowerCase()
-            .includes(normalizedKeyword) ||
-          question.topic
-            .toLowerCase()
-            .includes(normalizedKeyword)
-        );
-      })
-      .sort((first, second) => {
-        return (
-          new Date(second.updatedAt).getTime() -
-          new Date(first.updatedAt).getTime()
-        );
-      });
-  }, [
-    questions,
-    filterLevel,
-    searchKeyword,
-  ]);
-
-  function updateForm<K extends keyof QuestionForm>(
-    field: K,
-    value: QuestionForm[K],
+function normalizeRegion(
+  value: unknown,
+): Region | null {
+  if (
+    !value ||
+    typeof value !== "object"
   ) {
-    setForm((previous) => ({
-      ...previous,
-      [field]: value,
-    }));
+    return null;
   }
 
-  function saveQuestionList(
-    nextQuestions: AdminQuestion[],
-  ) {
-    setQuestions(nextQuestions);
+  const raw = value as Record<
+    string,
+    unknown
+  >;
 
-    window.localStorage.setItem(
-      QUESTION_STORAGE_KEY,
-      JSON.stringify(nextQuestions),
+  const id =
+    getString(raw.id) ||
+    getString(raw._id);
+
+  const name = getString(raw.name);
+
+  if (!id || !name) {
+    return null;
+  }
+
+  return {
+    id,
+
+    name,
+
+    chineseName:
+      getString(raw.chineseName),
+
+    pinyin:
+      getString(raw.pinyin),
+
+    isActive:
+      raw.isActive !== false,
+  };
+}
+
+function normalizeQuestion(
+  value: unknown,
+  regions: Region[],
+): Question | null {
+  if (
+    !value ||
+    typeof value !== "object"
+  ) {
+    return null;
+  }
+
+  const raw = value as Record<
+    string,
+    unknown
+  >;
+
+  const id =
+    getString(raw.id) ||
+    getString(raw._id);
+
+  const questionText =
+    getString(raw.question);
+
+  if (!id || !questionText) {
+    return null;
+  }
+
+  let regionId = "";
+  let regionName = "";
+
+  if (
+    raw.region &&
+    typeof raw.region === "object"
+  ) {
+    const populatedRegion =
+      raw.region as Record<
+        string,
+        unknown
+      >;
+
+    regionId =
+      getString(
+        populatedRegion.id,
+      ) ||
+      getString(
+        populatedRegion._id,
+      );
+
+    regionName =
+      getString(
+        populatedRegion.name,
+      );
+  } else {
+    regionId =
+      getString(raw.regionId) ||
+      getString(raw.region);
+  }
+
+  if (!regionName) {
+    regionName =
+      getString(raw.regionName);
+  }
+
+  if (!regionName && regionId) {
+    regionName =
+      regions.find(
+        (region) =>
+          region.id === regionId,
+      )?.name ?? "";
+  }
+
+  const rawLevel =
+    Number(raw.level);
+
+  const level: HSKLevel =
+    rawLevel === 4 ||
+    rawLevel === 5 ||
+    rawLevel === 6
+      ? rawLevel
+      : 3;
+
+  const options =
+    Array.isArray(raw.options)
+      ? raw.options
+          .map((option) =>
+            getString(option),
+          )
+          .slice(0, 4)
+      : [];
+
+  while (
+    options.length < 4
+  ) {
+    options.push("");
+  }
+
+  const rawCorrectIndex =
+    Number(raw.correctIndex);
+
+  const correctIndex =
+    Number.isInteger(
+      rawCorrectIndex,
+    ) &&
+    rawCorrectIndex >= 0 &&
+    rawCorrectIndex <= 3
+      ? rawCorrectIndex
+      : 0;
+
+  return {
+    id,
+
+    regionId,
+
+    regionName:
+      regionName ||
+      "Chưa xác định",
+
+    level,
+
+    topic:
+      getString(raw.topic),
+
+    question:
+      questionText,
+
+    pinyin:
+      getString(raw.pinyin),
+
+    options,
+
+    correctIndex,
+
+    hint:
+      getString(raw.hint),
+
+    explanation:
+      getString(
+        raw.explanation,
+      ),
+
+    isActive:
+      raw.isActive !== false,
+
+    createdAt:
+      getString(raw.createdAt),
+
+    updatedAt:
+      getString(raw.updatedAt),
+  };
+}
+
+function formatDate(
+  value?: string,
+) {
+  if (!value) {
+    return "Chưa cập nhật";
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
+    return "Chưa cập nhật";
+  }
+
+  return new Intl.DateTimeFormat(
+    "vi-VN",
+    {
+      dateStyle: "short",
+      timeStyle: "short",
+    },
+  ).format(date);
+}
+
+export default function AdminQuestionsPage() {
+  const [
+    regions,
+    setRegions,
+  ] = useState<Region[]>([]);
+
+  const [
+    questions,
+    setQuestions,
+  ] = useState<Question[]>([]);
+
+  const [
+    form,
+    setForm,
+  ] =
+    useState<QuestionForm>(
+      INITIAL_FORM,
+    );
+
+  const [
+    editingId,
+    setEditingId,
+  ] =
+    useState<string | null>(
+      null,
+    );
+
+  const [
+    search,
+    setSearch,
+  ] = useState("");
+
+  const [
+    regionFilter,
+    setRegionFilter,
+  ] = useState("");
+
+  const [
+    levelFilter,
+    setLevelFilter,
+  ] = useState("");
+
+  const [
+    statusFilter,
+    setStatusFilter,
+  ] = useState("");
+
+  const [
+    regionsLoading,
+    setRegionsLoading,
+  ] = useState(true);
+
+  const [
+    questionsLoading,
+    setQuestionsLoading,
+  ] = useState(true);
+
+  const [
+    submitting,
+    setSubmitting,
+  ] = useState(false);
+
+  const [
+    deletingId,
+    setDeletingId,
+  ] =
+    useState<string | null>(
+      null,
+    );
+
+  const [
+    togglingId,
+    setTogglingId,
+  ] =
+    useState<string | null>(
+      null,
+    );
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const [
+    successMessage,
+    setSuccessMessage,
+  ] = useState("");
+
+  const loadRegions =
+    useCallback(async () => {
+      try {
+        setRegionsLoading(true);
+
+        const response =
+          await fetch(
+            "/api/regions",
+            {
+              method: "GET",
+
+              credentials:
+                "include",
+
+              cache:
+                "no-store",
+
+              headers: {
+                Accept:
+                  "application/json",
+              },
+            },
+          );
+
+        const result =
+          await readResponse(
+            response,
+          );
+
+        if (
+          !response.ok ||
+          result.success !==
+            true
+        ) {
+          throw new Error(
+            getString(
+              result.message,
+              "Không thể tải danh sách tỉnh/thành.",
+            ),
+          );
+        }
+
+        const rawRegions =
+          Array.isArray(
+            result.data,
+          )
+            ? result.data
+            : Array.isArray(
+                  result.regions,
+                )
+              ? result.regions
+              : [];
+
+        const normalized =
+          rawRegions
+            .map(
+              normalizeRegion,
+            )
+            .filter(
+              (
+                region,
+              ): region is Region =>
+                region !== null,
+            );
+
+        setRegions(
+          normalized,
+        );
+
+        setForm(
+          (previous) => ({
+            ...previous,
+
+            regionId:
+              previous.regionId ||
+              normalized[0]
+                ?.id ||
+              "",
+          }),
+        );
+
+        return normalized;
+      } catch (loadError) {
+        console.error(
+          "GET /api/regions:",
+          loadError,
+        );
+
+        setRegions([]);
+
+        setError(
+          loadError instanceof
+          Error
+            ? loadError.message
+            : "Không thể tải danh sách tỉnh/thành.",
+        );
+
+        return [];
+      } finally {
+        setRegionsLoading(
+          false,
+        );
+      }
+    }, []);
+
+  const loadQuestions =
+    useCallback(
+      async (
+        availableRegions: Region[],
+      ) => {
+        try {
+          setQuestionsLoading(
+            true,
+          );
+
+          /*
+           * QUAN TRỌNG:
+           * API admin dùng
+           * ?scope=admin
+           */
+          const response =
+            await fetch(
+              "/api/questions?scope=admin",
+              {
+                method: "GET",
+
+                credentials:
+                  "include",
+
+                cache:
+                  "no-store",
+
+                headers: {
+                  Accept:
+                    "application/json",
+                },
+              },
+            );
+
+          const result =
+            await readResponse(
+              response,
+            );
+
+          if (
+            !response.ok ||
+            result.success !==
+              true
+          ) {
+            if (
+              response.status ===
+              401
+            ) {
+              throw new Error(
+                "Bạn chưa đăng nhập.",
+              );
+            }
+
+            if (
+              response.status ===
+              403
+            ) {
+              throw new Error(
+                getString(
+                  result.message,
+                  "Tài khoản hiện tại không có quyền admin.",
+                ),
+              );
+            }
+
+            throw new Error(
+              getString(
+                result.message,
+                "Không thể tải danh sách câu hỏi.",
+              ),
+            );
+          }
+
+          const rawQuestions =
+            Array.isArray(
+              result.data,
+            )
+              ? result.data
+              : Array.isArray(
+                    result.questions,
+                  )
+                ? result.questions
+                : [];
+
+          const normalized =
+            rawQuestions
+              .map(
+                (question) =>
+                  normalizeQuestion(
+                    question,
+                    availableRegions,
+                  ),
+              )
+              .filter(
+                (
+                  question,
+                ): question is Question =>
+                  question !==
+                  null,
+              );
+
+          setQuestions(
+            normalized,
+          );
+        } catch (
+          loadError
+        ) {
+          console.error(
+            "GET /api/questions:",
+            loadError,
+          );
+
+          setQuestions(
+            [],
+          );
+
+          setError(
+            loadError instanceof
+            Error
+              ? loadError.message
+              : "Không thể tải danh sách câu hỏi.",
+          );
+        } finally {
+          setQuestionsLoading(
+            false,
+          );
+        }
+      },
+      [],
+    );
+
+  /*
+   * ========================================
+   * INITIAL DATA LOAD
+   * ========================================
+   */
+  useEffect(() => {
+    let cancelled =
+      false;
+
+    const timer =
+      window.setTimeout(
+        () => {
+          void (async () => {
+            setError(
+              "",
+            );
+
+            const loadedRegions =
+              await loadRegions();
+
+            if (
+              cancelled
+            ) {
+              return;
+            }
+
+            await loadQuestions(
+              loadedRegions,
+            );
+          })();
+        },
+        0,
+      );
+
+    return () => {
+      cancelled =
+        true;
+
+      window.clearTimeout(
+        timer,
+      );
+    };
+  }, [
+    loadRegions,
+    loadQuestions,
+  ]);
+
+  const filteredQuestions =
+    useMemo(() => {
+      const keyword =
+        search
+          .trim()
+          .toLowerCase();
+
+      return questions.filter(
+        (question) => {
+          const matchesSearch =
+            !keyword ||
+            question.question
+              .toLowerCase()
+              .includes(keyword) ||
+            question.topic
+              .toLowerCase()
+              .includes(keyword) ||
+            question.pinyin
+              .toLowerCase()
+              .includes(keyword);
+
+          const matchesRegion =
+            !regionFilter ||
+            question.regionId ===
+              regionFilter;
+
+          const matchesLevel =
+            !levelFilter ||
+            question.level ===
+              Number(
+                levelFilter,
+              );
+
+          const matchesStatus =
+            !statusFilter ||
+            (statusFilter ===
+            "active"
+              ? question.isActive
+              : !question.isActive);
+
+          return (
+            matchesSearch &&
+            matchesRegion &&
+            matchesLevel &&
+            matchesStatus
+          );
+        },
+      );
+    }, [
+      questions,
+      search,
+      regionFilter,
+      levelFilter,
+      statusFilter,
+    ]);
+
+  const activeCount =
+    questions.filter(
+      (question) =>
+        question.isActive,
+    ).length;
+
+  const inactiveCount =
+    questions.length -
+    activeCount;
+
+  function resetForm() {
+    setForm({
+      ...INITIAL_FORM,
+
+      regionId:
+        regions[0]?.id ||
+        "",
+    });
+
+    setEditingId(null);
+  }
+
+  function updateForm<
+    Key extends keyof QuestionForm,
+  >(
+    key: Key,
+    value:
+      QuestionForm[Key],
+  ) {
+    setForm(
+      (previous) => ({
+        ...previous,
+        [key]: value,
+      }),
     );
   }
 
-  function handleSubmit(
+  function updateOption(
+    index: number,
+    value: string,
+  ) {
+    setForm(
+      (previous) => {
+        const options = [
+          ...previous.options,
+        ] as QuestionForm["options"];
+
+        options[index] =
+          value;
+
+        return {
+          ...previous,
+          options,
+        };
+      },
+    );
+  }
+
+  function validateForm() {
+    if (!form.regionId) {
+      return "Vui lòng chọn tỉnh/thành.";
+    }
+
+    if (
+      !form.topic.trim()
+    ) {
+      return "Vui lòng nhập chủ đề.";
+    }
+
+    if (
+      !form.question.trim()
+    ) {
+      return "Vui lòng nhập nội dung câu hỏi.";
+    }
+
+    if (
+      form.options.some(
+        (option) =>
+          !option.trim(),
+      )
+    ) {
+      return "Vui lòng nhập đầy đủ 4 đáp án.";
+    }
+
+    if (
+      !Number.isInteger(
+        form.correctIndex,
+      ) ||
+      form.correctIndex < 0 ||
+      form.correctIndex > 3
+    ) {
+      return "Vui lòng chọn đáp án đúng.";
+    }
+
+    if (
+      !form.explanation.trim()
+    ) {
+      return "Vui lòng nhập phần giải thích đáp án.";
+    }
+
+    return "";
+  }
+
+  async function updateQuestionRequest(
+    questionId: string,
+    payload: Record<
+      string,
+      unknown
+    >,
+  ) {
+    let response =
+      await fetch(
+        `/api/questions/${questionId}`,
+        {
+          method: "PUT",
+
+          credentials:
+            "include",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            Accept:
+              "application/json",
+          },
+
+          body:
+            JSON.stringify(
+              payload,
+            ),
+        },
+      );
+
+    /*
+     * Nếu API không dùng PUT
+     * thì thử PATCH.
+     */
+    if (
+      response.status ===
+      405
+    ) {
+      response =
+        await fetch(
+          `/api/questions/${questionId}`,
+          {
+            method:
+              "PATCH",
+
+            credentials:
+              "include",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+
+              Accept:
+                "application/json",
+            },
+
+            body:
+              JSON.stringify(
+                payload,
+              ),
+          },
+        );
+    }
+
+    return response;
+  }
+
+  async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
 
-    const options = [
-      form.optionA.trim(),
-      form.optionB.trim(),
-      form.optionC.trim(),
-      form.optionD.trim(),
-    ];
+    const validation =
+      validateForm();
 
-    if (
-      !form.question.trim() ||
-      options.some((option) => !option) ||
-      !form.explanation.trim()
-    ) {
-      setMessage(
-        "Vui lòng nhập câu hỏi, đủ bốn đáp án và phần giải thích.",
+    if (validation) {
+      setError(
+        validation,
+      );
+
+      setSuccessMessage(
+        "",
       );
 
       return;
     }
 
-    const now = new Date().toISOString();
+    try {
+      setSubmitting(true);
 
-    if (editingId) {
-      const nextQuestions = questions.map(
-        (question) => {
-          if (question.id !== editingId) {
-            return question;
-          }
+      setError("");
 
-          return {
-            ...question,
-            level: form.level,
-            topic: form.topic,
-            question: form.question.trim(),
-            pinyin: form.pinyin.trim(),
-            options,
-            correctIndex: form.correctIndex,
-            hint: form.hint.trim(),
-            explanation:
-              form.explanation.trim(),
-            updatedAt: now,
-          };
-        },
+      setSuccessMessage(
+        "",
       );
 
-      saveQuestionList(nextQuestions);
-      setMessage("Đã cập nhật câu hỏi.");
-    } else {
-      const newQuestion: AdminQuestion = {
-        id: crypto.randomUUID(),
-        level: form.level,
-        topic: form.topic,
-        question: form.question.trim(),
-        pinyin: form.pinyin.trim(),
-        options,
-        correctIndex: form.correctIndex,
-        hint: form.hint.trim(),
-        explanation: form.explanation.trim(),
-        createdAt: now,
-        updatedAt: now,
+      const payload = {
+        region:
+          form.regionId,
+
+        regionId:
+          form.regionId,
+
+        level:
+          form.level,
+
+        topic:
+          form.topic.trim(),
+
+        question:
+          form.question.trim(),
+
+        pinyin:
+          form.pinyin.trim(),
+
+        options:
+          form.options.map(
+            (option) =>
+              option.trim(),
+          ),
+
+        correctIndex:
+          form.correctIndex,
+
+        hint:
+          form.hint.trim(),
+
+        explanation:
+          form.explanation.trim(),
+
+        isActive:
+          form.isActive,
       };
 
-      saveQuestionList([
-        newQuestion,
-        ...questions,
-      ]);
+      const response =
+        editingId
+          ? await updateQuestionRequest(
+              editingId,
+              payload,
+            )
+          : await fetch(
+              "/api/questions",
+              {
+                method:
+                  "POST",
 
-      setMessage(
-        "Đã thêm câu hỏi vào ngân hàng.",
+                credentials:
+                  "include",
+
+                headers: {
+                  "Content-Type":
+                    "application/json",
+
+                  Accept:
+                    "application/json",
+                },
+
+                body:
+                  JSON.stringify(
+                    payload,
+                  ),
+              },
+            );
+
+      const result =
+        await readResponse(
+          response,
+        );
+
+      if (
+        !response.ok ||
+        result.success !==
+          true
+      ) {
+        if (
+          response.status ===
+          401
+        ) {
+          throw new Error(
+            "Bạn chưa đăng nhập. Hãy đăng nhập lại.",
+          );
+        }
+
+        if (
+          response.status ===
+          403
+        ) {
+          throw new Error(
+            getString(
+              result.message,
+              "Tài khoản hiện tại không có quyền quản trị câu hỏi.",
+            ),
+          );
+        }
+
+        throw new Error(
+          getString(
+            result.message,
+            editingId
+              ? "Không thể cập nhật câu hỏi."
+              : "Không thể thêm câu hỏi.",
+          ),
+        );
+      }
+
+      setSuccessMessage(
+        editingId
+          ? "Đã cập nhật câu hỏi thành công."
+          : "Đã thêm câu hỏi mới thành công.",
       );
-    }
 
-    resetForm();
+      resetForm();
+
+      await loadQuestions(
+        regions,
+      );
+    } catch (
+      submitError
+    ) {
+      console.error(
+        "Lưu câu hỏi:",
+        submitError,
+      );
+
+      setError(
+        submitError instanceof
+        Error
+          ? submitError.message
+          : "Không thể lưu câu hỏi.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function startEditing(
-    question: AdminQuestion,
+    question: Question,
   ) {
-    setEditingId(question.id);
+    setEditingId(
+      question.id,
+    );
 
     setForm({
-      level: question.level,
-      topic: question.topic,
-      question: question.question,
-      pinyin: question.pinyin,
-      optionA: question.options[0] ?? "",
-      optionB: question.options[1] ?? "",
-      optionC: question.options[2] ?? "",
-      optionD: question.options[3] ?? "",
-      correctIndex: question.correctIndex,
-      hint: question.hint,
-      explanation: question.explanation,
+      regionId:
+        question.regionId ||
+        regions[0]?.id ||
+        "",
+
+      level:
+        question.level,
+
+      topic:
+        question.topic,
+
+      question:
+        question.question,
+
+      pinyin:
+        question.pinyin,
+
+      options: [
+        question.options[0] ||
+          "",
+
+        question.options[1] ||
+          "",
+
+        question.options[2] ||
+          "",
+
+        question.options[3] ||
+          "",
+      ],
+
+      correctIndex:
+        question.correctIndex,
+
+      hint:
+        question.hint,
+
+      explanation:
+        question.explanation,
+
+      isActive:
+        question.isActive,
     });
 
-    setMessage(
-      "Đang chỉnh sửa câu hỏi đã chọn.",
+    setError("");
+
+    setSuccessMessage(
+      "",
     );
 
     window.scrollTo({
@@ -271,585 +1192,1221 @@ export default function AdminQuestionsPage() {
     });
   }
 
-  function deleteQuestion(questionId: string) {
-    const shouldDelete = window.confirm(
-      "Bạn có chắc chắn muốn xóa câu hỏi này?",
-    );
+  async function toggleQuestion(
+    question: Question,
+  ) {
+    try {
+      setTogglingId(
+        question.id,
+      );
 
-    if (!shouldDelete) return;
+      setError("");
 
-    const nextQuestions = questions.filter(
-      (question) =>
-        question.id !== questionId,
-    );
+      setSuccessMessage(
+        "",
+      );
 
-    saveQuestionList(nextQuestions);
+      const response =
+        await updateQuestionRequest(
+          question.id,
+          {
+            isActive:
+              !question.isActive,
+          },
+        );
 
-    if (editingId === questionId) {
-      resetForm();
+      const result =
+        await readResponse(
+          response,
+        );
+
+      if (
+        !response.ok ||
+        result.success !==
+          true
+      ) {
+        throw new Error(
+          getString(
+            result.message,
+            "Không thể thay đổi trạng thái câu hỏi.",
+          ),
+        );
+      }
+
+      setQuestions(
+        (previous) =>
+          previous.map(
+            (item) =>
+              item.id ===
+              question.id
+                ? {
+                    ...item,
+
+                    isActive:
+                      !question.isActive,
+                  }
+                : item,
+          ),
+      );
+
+      setSuccessMessage(
+        question.isActive
+          ? "Đã ẩn câu hỏi."
+          : "Đã kích hoạt câu hỏi.",
+      );
+    } catch (
+      toggleError
+    ) {
+      setError(
+        toggleError instanceof
+        Error
+          ? toggleError.message
+          : "Không thể thay đổi trạng thái.",
+      );
+    } finally {
+      setTogglingId(
+        null,
+      );
     }
-
-    setMessage("Đã xóa câu hỏi.");
   }
 
-  function resetForm() {
-    setForm(INITIAL_FORM);
-    setEditingId(null);
+  async function deleteQuestion(
+    question: Question,
+  ) {
+    const confirmed =
+      window.confirm(
+        `Bạn có chắc muốn xóa câu hỏi:\n"${question.question}"?`,
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingId(
+        question.id,
+      );
+
+      setError("");
+
+      setSuccessMessage(
+        "",
+      );
+
+      const response =
+        await fetch(
+          `/api/questions/${question.id}`,
+          {
+            method:
+              "DELETE",
+
+            credentials:
+              "include",
+
+            headers: {
+              Accept:
+                "application/json",
+            },
+          },
+        );
+
+      const result =
+        await readResponse(
+          response,
+        );
+
+      if (
+        !response.ok ||
+        result.success !==
+          true
+      ) {
+        throw new Error(
+          getString(
+            result.message,
+            "Không thể xóa câu hỏi.",
+          ),
+        );
+      }
+
+      setQuestions(
+        (previous) =>
+          previous.filter(
+            (item) =>
+              item.id !==
+              question.id,
+          ),
+      );
+
+      if (
+        editingId ===
+        question.id
+      ) {
+        resetForm();
+      }
+
+      setSuccessMessage(
+        "Đã xóa câu hỏi thành công.",
+      );
+    } catch (
+      deleteError
+    ) {
+      setError(
+        deleteError instanceof
+        Error
+          ? deleteError.message
+          : "Không thể xóa câu hỏi.",
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function refreshData() {
+    setError("");
+
+    setSuccessMessage("");
+
+    const loadedRegions =
+      await loadRegions();
+
+    await loadQuestions(
+      loadedRegions,
+    );
   }
 
   return (
-    <main className="min-h-screen bg-[#061522] px-4 py-6 text-white md:px-8">
-      <div className="mx-auto max-w-[1450px]">
-        {/* Header */}
-        <header className="mb-6 flex flex-col gap-5 rounded-3xl border border-emerald-300/20 bg-gradient-to-r from-[#0c2b40] to-[#092033] p-5 shadow-2xl md:flex-row md:items-center md:justify-between md:p-7">
-          <div className="flex items-center gap-4">
-            <div className="grid size-14 place-items-center rounded-2xl bg-gradient-to-br from-emerald-300 to-emerald-500 text-2xl shadow-lg shadow-emerald-400/15">
-              📚
-            </div>
+    <main className="min-h-screen bg-[#03111f] font-sans text-white">
 
-            <div>
-              <p className="m-0 text-[10px] font-black tracking-[0.17em] text-emerald-300">
-                HSK SKY QUEST
-              </p>
+      <div className="mx-auto grid min-h-screen max-w-[1920px] lg:grid-cols-[255px_1fr]">
 
-              <h1 className="mb-0 mt-1 text-2xl font-black md:text-3xl">
-                Quản trị ngân hàng câu hỏi
-              </h1>
+        {/* ================= SIDEBAR ================= */}
 
-              <p className="mb-0 mt-1 text-sm text-slate-400">
-                Thêm và quản lý câu hỏi HSK 3–6
-              </p>
-            </div>
+        <aside className="border-b border-white/10 bg-[#061b2b] lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r">
+
+          <div className="border-b border-white/10 px-5 py-5">
+
+            <Link
+              href="/admin"
+              className="flex items-center gap-3"
+            >
+
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-emerald-300 to-cyan-400 text-2xl text-slate-950">
+                ✈
+              </span>
+
+              <span>
+
+                <strong className="block text-sm font-black">
+                  HSK SKY QUEST
+                </strong>
+
+                <small className="text-xs font-bold text-emerald-300">
+                  ADMIN PANEL
+                </small>
+
+              </span>
+
+            </Link>
+
           </div>
 
-          <Link
-            href="/"
-            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-5 text-sm font-bold text-slate-200 transition hover:border-emerald-300/30 hover:bg-emerald-300/10"
-          >
-            ← Quay lại game
-          </Link>
-        </header>
+          <nav className="grid gap-2 p-3 sm:grid-cols-4 lg:grid-cols-1">
 
-        {/* Thống kê */}
-        <section className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5">
-          <StatCard
-            label="Tổng câu hỏi"
-            value={questions.length}
-            color="emerald"
-          />
+            <Link
+              href="/admin"
+              className="rounded-2xl px-4 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/5 hover:text-white"
+            >
+              📊 Tổng quan
+            </Link>
 
-          {LEVELS.map((level) => (
-            <StatCard
-              key={level}
-              label={`HSK ${level}`}
-              value={
-                questions.filter(
-                  (question) =>
-                    question.level === level,
-                ).length
-              }
-              color={
-                level === 3
-                  ? "blue"
-                  : level === 4
-                    ? "amber"
-                    : level === 5
-                      ? "orange"
-                      : "red"
-              }
-            />
-          ))}
-        </section>
+            <Link
+              href="/admin/regions"
+              className="rounded-2xl px-4 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/5 hover:text-white"
+            >
+              🗺️ Tỉnh/thành
+            </Link>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[480px_minmax(0,1fr)]">
-          {/* Form */}
-          <section className="h-fit rounded-3xl border border-emerald-300/15 bg-[#0b2235] p-5 shadow-2xl xl:sticky xl:top-5">
-            <div className="mb-5 flex items-center justify-between">
+            <Link
+              href="/admin/questions"
+              className="rounded-2xl border border-emerald-400/40 bg-emerald-400/10 px-4 py-3 text-sm font-black text-white"
+            >
+              📝 Câu hỏi
+            </Link>
+
+            <Link
+              href="/"
+              className="rounded-2xl px-4 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/5 hover:text-white"
+            >
+              🎮 Xem trò chơi
+            </Link>
+
+          </nav>
+
+        </aside>
+
+        {/* ================= CONTENT ================= */}
+
+        <section className="min-w-0 p-4 sm:p-6 lg:p-8">
+
+          {/* HEADER */}
+
+          <header className="rounded-[28px] border border-cyan-400/20 bg-[#0a263a] p-5 shadow-xl sm:p-7">
+
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+
               <div>
-                <p className="m-0 text-[10px] font-black tracking-[0.15em] text-emerald-300">
-                  {editingId
-                    ? "CHỈNH SỬA"
-                    : "CÂU HỎI MỚI"}
+
+                <span className="inline-flex rounded-full bg-emerald-400/10 px-3 py-1.5 text-xs font-black tracking-[0.14em] text-emerald-300">
+                  HSK SKY QUEST ADMIN
+                </span>
+
+                <h1 className="mt-3 text-3xl font-black sm:text-4xl">
+                  Quản lý câu hỏi
+                </h1>
+
+                <p className="mt-2 max-w-3xl leading-7 text-slate-400">
+                  Quản lý ngân hàng câu hỏi theo
+                  tỉnh/thành và cấp độ HSK.
                 </p>
 
-                <h2 className="mb-0 mt-1 text-xl font-black">
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+
+                <article className="rounded-2xl border border-blue-400/20 bg-blue-400/10 p-4 text-center">
+
+                  <strong className="block text-2xl text-blue-300">
+                    {questions.length}
+                  </strong>
+
+                  <span className="text-xs font-bold text-slate-300">
+                    Tổng cộng
+                  </span>
+
+                </article>
+
+                <article className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-center">
+
+                  <strong className="block text-2xl text-emerald-300">
+                    {activeCount}
+                  </strong>
+
+                  <span className="text-xs font-bold text-slate-300">
+                    Hoạt động
+                  </span>
+
+                </article>
+
+                <article className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-center">
+
+                  <strong className="block text-2xl text-amber-300">
+                    {inactiveCount}
+                  </strong>
+
+                  <span className="text-xs font-bold text-slate-300">
+                    Đã ẩn
+                  </span>
+
+                </article>
+
+              </div>
+
+            </div>
+
+          </header>
+
+          {/* MESSAGE */}
+
+          {error && (
+            <div
+              role="alert"
+              className="mt-5 rounded-2xl border border-red-400/30 bg-red-500/10 px-5 py-4 text-sm font-bold text-red-200"
+            >
+              ✕ {error}
+            </div>
+          )}
+
+          {successMessage && (
+            <div
+              role="status"
+              className="mt-5 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-5 py-4 text-sm font-bold text-emerald-200"
+            >
+              ✓ {successMessage}
+            </div>
+          )}
+
+          <div className="mt-6 grid items-start gap-6 xl:grid-cols-[440px_minmax(0,1fr)]">
+
+            {/* ================= FORM ================= */}
+
+            <form
+              onSubmit={
+                handleSubmit
+              }
+              className="rounded-[28px] border border-white/10 bg-[#0a263a] p-5 shadow-xl sm:p-6 xl:sticky xl:top-6"
+            >
+
+              <span className="text-xs font-black tracking-[0.14em] text-emerald-300">
+                {editingId
+                  ? "CHỈNH SỬA CÂU HỎI"
+                  : "CÂU HỎI MỚI"}
+              </span>
+
+              <div className="mt-2 flex items-center justify-between gap-3">
+
+                <h2 className="text-2xl font-black">
                   {editingId
                     ? "Cập nhật câu hỏi"
                     : "Thêm câu hỏi"}
                 </h2>
-              </div>
-
-              <span className="grid size-11 place-items-center rounded-xl bg-emerald-300/10 text-xl">
-                ✍️
-              </span>
-            </div>
-
-            {message && (
-              <div className="mb-5 rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm text-emerald-100">
-                {message}
-              </div>
-            )}
-
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-4"
-            >
-              <div className="grid grid-cols-2 gap-3">
-                <FormField label="Trình độ">
-                  <select
-                    value={form.level}
-                    onChange={(event) =>
-                      updateForm(
-                        "level",
-                        Number(
-                          event.target.value,
-                        ) as HSKLevel,
-                      )
-                    }
-                    className={inputClass}
-                  >
-                    {LEVELS.map((level) => (
-                      <option
-                        key={level}
-                        value={level}
-                      >
-                        HSK {level}
-                      </option>
-                    ))}
-                  </select>
-                </FormField>
-
-                <FormField label="Chủ đề">
-                  <select
-                    value={form.topic}
-                    onChange={(event) =>
-                      updateForm(
-                        "topic",
-                        event.target.value,
-                      )
-                    }
-                    className={inputClass}
-                  >
-                    {TOPICS.map((topic) => (
-                      <option
-                        key={topic}
-                        value={topic}
-                      >
-                        {topic}
-                      </option>
-                    ))}
-                  </select>
-                </FormField>
-              </div>
-
-              <FormField label="Nội dung câu hỏi">
-                <textarea
-                  rows={3}
-                  value={form.question}
-                  onChange={(event) =>
-                    updateForm(
-                      "question",
-                      event.target.value,
-                    )
-                  }
-                  placeholder="Ví dụ: 我每天早上七点___。"
-                  className={inputClass}
-                />
-              </FormField>
-
-              <FormField label="Pinyin">
-                <input
-                  value={form.pinyin}
-                  onChange={(event) =>
-                    updateForm(
-                      "pinyin",
-                      event.target.value,
-                    )
-                  }
-                  placeholder="Không bắt buộc"
-                  className={inputClass}
-                />
-              </FormField>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <AnswerInput
-                  label="Đáp án A"
-                  value={form.optionA}
-                  onChange={(value) =>
-                    updateForm("optionA", value)
-                  }
-                />
-
-                <AnswerInput
-                  label="Đáp án B"
-                  value={form.optionB}
-                  onChange={(value) =>
-                    updateForm("optionB", value)
-                  }
-                />
-
-                <AnswerInput
-                  label="Đáp án C"
-                  value={form.optionC}
-                  onChange={(value) =>
-                    updateForm("optionC", value)
-                  }
-                />
-
-                <AnswerInput
-                  label="Đáp án D"
-                  value={form.optionD}
-                  onChange={(value) =>
-                    updateForm("optionD", value)
-                  }
-                />
-              </div>
-
-              <FormField label="Đáp án chính xác">
-                <select
-                  value={form.correctIndex}
-                  onChange={(event) =>
-                    updateForm(
-                      "correctIndex",
-                      Number(event.target.value),
-                    )
-                  }
-                  className={inputClass}
-                >
-                  <option value={0}>
-                    A – {form.optionA || "Đáp án A"}
-                  </option>
-
-                  <option value={1}>
-                    B – {form.optionB || "Đáp án B"}
-                  </option>
-
-                  <option value={2}>
-                    C – {form.optionC || "Đáp án C"}
-                  </option>
-
-                  <option value={3}>
-                    D – {form.optionD || "Đáp án D"}
-                  </option>
-                </select>
-              </FormField>
-
-              <FormField label="Gợi ý">
-                <textarea
-                  rows={2}
-                  value={form.hint}
-                  onChange={(event) =>
-                    updateForm(
-                      "hint",
-                      event.target.value,
-                    )
-                  }
-                  placeholder="Gợi ý cho người chơi"
-                  className={inputClass}
-                />
-              </FormField>
-
-              <FormField label="Giải thích đáp án">
-                <textarea
-                  rows={3}
-                  value={form.explanation}
-                  onChange={(event) =>
-                    updateForm(
-                      "explanation",
-                      event.target.value,
-                    )
-                  }
-                  placeholder="Giải thích vì sao đáp án đúng"
-                  className={inputClass}
-                />
-              </FormField>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="submit"
-                  className="min-h-12 flex-1 rounded-xl bg-gradient-to-r from-emerald-300 to-emerald-400 px-5 font-black text-[#062d32] transition hover:-translate-y-0.5"
-                >
-                  {editingId
-                    ? "Lưu thay đổi"
-                    : "Thêm câu hỏi"}
-                </button>
 
                 {editingId && (
                   <button
                     type="button"
-                    onClick={() => {
-                      resetForm();
-                      setMessage("");
-                    }}
-                    className="min-h-12 rounded-xl border border-white/10 bg-white/5 px-5 font-bold text-slate-300"
+                    onClick={
+                      resetForm
+                    }
+                    className="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/5"
                   >
-                    Hủy
+                    Hủy sửa
                   </button>
                 )}
+
               </div>
+
+              {regions.length ===
+                0 &&
+                !regionsLoading && (
+                  <div className="mt-5 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-200">
+                    Chưa có tỉnh/thành.
+                    Hãy thêm tỉnh trước khi thêm câu hỏi.
+                  </div>
+                )}
+
+              <div className="mt-6 grid gap-5">
+
+                {/* REGION + HSK */}
+
+                <div className="grid gap-4 sm:grid-cols-2">
+
+                  <label>
+
+                    <span className="mb-2 block text-sm font-bold">
+                      Tỉnh/thành *
+                    </span>
+
+                    <select
+                      value={
+                        form.regionId
+                      }
+                      disabled={
+                        regionsLoading ||
+                        regions.length ===
+                          0
+                      }
+                      onChange={(
+                        event,
+                      ) =>
+                        updateForm(
+                          "regionId",
+                          event
+                            .target
+                            .value,
+                        )
+                      }
+                      className="h-12 w-full rounded-xl border border-slate-600 bg-[#103149] px-3 outline-none focus:border-emerald-400"
+                    >
+
+                      <option value="">
+                        Chọn tỉnh/thành
+                      </option>
+
+                      {regions.map(
+                        (
+                          region,
+                        ) => (
+                          <option
+                            key={
+                              region.id
+                            }
+                            value={
+                              region.id
+                            }
+                          >
+                            {
+                              region.name
+                            }
+
+                            {region.chineseName
+                              ? ` · ${region.chineseName}`
+                              : ""}
+                          </option>
+                        ),
+                      )}
+
+                    </select>
+
+                  </label>
+
+                  <label>
+
+                    <span className="mb-2 block text-sm font-bold">
+                      Cấp độ HSK *
+                    </span>
+
+                    <select
+                      value={
+                        form.level
+                      }
+                      onChange={(
+                        event,
+                      ) =>
+                        updateForm(
+                          "level",
+                          Number(
+                            event
+                              .target
+                              .value,
+                          ) as HSKLevel,
+                        )
+                      }
+                      className="h-12 w-full rounded-xl border border-slate-600 bg-[#103149] px-3 outline-none focus:border-emerald-400"
+                    >
+
+                      {HSK_LEVELS.map(
+                        (
+                          level,
+                        ) => (
+                          <option
+                            key={
+                              level
+                            }
+                            value={
+                              level
+                            }
+                          >
+                            HSK{" "}
+                            {
+                              level
+                            }
+                          </option>
+                        ),
+                      )}
+
+                    </select>
+
+                  </label>
+
+                </div>
+
+                {/* TOPIC */}
+
+                <label>
+
+                  <span className="mb-2 block text-sm font-bold">
+                    Chủ đề *
+                  </span>
+
+                  <input
+                    value={
+                      form.topic
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      updateForm(
+                        "topic",
+                        event
+                          .target
+                          .value,
+                      )
+                    }
+                    placeholder="Ví dụ: Du lịch, Ẩm thực, Gia đình..."
+                    className="h-12 w-full rounded-xl border border-slate-600 bg-[#103149] px-4 outline-none focus:border-emerald-400"
+                  />
+
+                </label>
+
+                {/* QUESTION */}
+
+                <label>
+
+                  <span className="mb-2 block text-sm font-bold">
+                    Nội dung câu hỏi *
+                  </span>
+
+                  <textarea
+                    value={
+                      form.question
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      updateForm(
+                        "question",
+                        event
+                          .target
+                          .value,
+                      )
+                    }
+                    rows={4}
+                    placeholder="例如：中国的首都是哪里？"
+                    className="w-full resize-y rounded-xl border border-slate-600 bg-[#103149] px-4 py-3 outline-none focus:border-emerald-400"
+                  />
+
+                </label>
+
+                {/* PINYIN */}
+
+                <label>
+
+                  <span className="mb-2 block text-sm font-bold">
+                    Phiên âm Pinyin
+                  </span>
+
+                  <input
+                    value={
+                      form.pinyin
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      updateForm(
+                        "pinyin",
+                        event
+                          .target
+                          .value,
+                      )
+                    }
+                    placeholder="Zhōngguó de shǒudū shì nǎlǐ?"
+                    className="h-12 w-full rounded-xl border border-slate-600 bg-[#103149] px-4 outline-none focus:border-emerald-400"
+                  />
+
+                </label>
+
+                {/* OPTIONS */}
+
+                <fieldset>
+
+                  <legend className="mb-3 text-sm font-bold">
+                    Bốn đáp án *
+                  </legend>
+
+                  <div className="grid gap-3">
+
+                    {form.options.map(
+                      (
+                        option,
+                        index,
+                      ) => (
+                        <label
+                          key={
+                            index
+                          }
+                          className={`flex items-center gap-3 rounded-xl border p-3 ${
+                            form.correctIndex ===
+                            index
+                              ? "border-emerald-400 bg-emerald-400/10"
+                              : "border-slate-700 bg-[#0c2c42]"
+                          }`}
+                        >
+
+                          <input
+                            type="radio"
+                            name="correctIndex"
+                            checked={
+                              form.correctIndex ===
+                              index
+                            }
+                            onChange={() =>
+                              updateForm(
+                                "correctIndex",
+                                index,
+                              )
+                            }
+                            className="h-4 w-4 accent-emerald-400"
+                          />
+
+                          <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/5 font-black">
+                            {
+                              ANSWER_LABELS[
+                                index
+                              ]
+                            }
+                          </span>
+
+                          <input
+                            value={
+                              option
+                            }
+                            onChange={(
+                              event,
+                            ) =>
+                              updateOption(
+                                index,
+                                event
+                                  .target
+                                  .value,
+                              )
+                            }
+                            placeholder={`Đáp án ${ANSWER_LABELS[index]}`}
+                            className="h-10 min-w-0 flex-1 bg-transparent outline-none"
+                          />
+
+                        </label>
+                      ),
+                    )}
+
+                  </div>
+
+                  <p className="mt-2 text-xs text-slate-400">
+                    Chọn nút tròn bên trái để đánh dấu đáp án đúng.
+                  </p>
+
+                </fieldset>
+
+                {/* HINT */}
+
+                <label>
+
+                  <span className="mb-2 block text-sm font-bold">
+                    Gợi ý
+                  </span>
+
+                  <textarea
+                    value={
+                      form.hint
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      updateForm(
+                        "hint",
+                        event
+                          .target
+                          .value,
+                      )
+                    }
+                    rows={2}
+                    placeholder="Nhập gợi ý cho người chơi..."
+                    className="w-full resize-y rounded-xl border border-slate-600 bg-[#103149] px-4 py-3 outline-none focus:border-emerald-400"
+                  />
+
+                </label>
+
+                {/* EXPLANATION */}
+
+                <label>
+
+                  <span className="mb-2 block text-sm font-bold">
+                    Giải thích đáp án *
+                  </span>
+
+                  <textarea
+                    value={
+                      form.explanation
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      updateForm(
+                        "explanation",
+                        event
+                          .target
+                          .value,
+                      )
+                    }
+                    rows={3}
+                    placeholder="Giải thích tại sao đáp án này chính xác..."
+                    className="w-full resize-y rounded-xl border border-slate-600 bg-[#103149] px-4 py-3 outline-none focus:border-emerald-400"
+                  />
+
+                </label>
+
+                {/* ACTIVE */}
+
+                <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-700 bg-[#0c2c42] p-4">
+
+                  <span>
+
+                    <strong className="block text-sm">
+                      Trạng thái hoạt động
+                    </strong>
+
+                    <small className="text-slate-400">
+                      Câu hỏi hoạt động sẽ được sử dụng trong trận đấu.
+                    </small>
+
+                  </span>
+
+                  <input
+                    type="checkbox"
+                    checked={
+                      form.isActive
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      updateForm(
+                        "isActive",
+                        event
+                          .target
+                          .checked,
+                      )
+                    }
+                    className="h-5 w-5 accent-emerald-400"
+                  />
+
+                </label>
+
+                {/* SUBMIT */}
+
+                <button
+                  type="submit"
+                  disabled={
+                    submitting ||
+                    regions.length ===
+                      0
+                  }
+                  className="rounded-xl bg-gradient-to-r from-emerald-300 to-cyan-400 px-5 py-3 font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {submitting
+                    ? "Đang lưu..."
+                    : editingId
+                      ? "Cập nhật câu hỏi"
+                      : "Thêm câu hỏi"}
+                </button>
+
+              </div>
+
             </form>
-          </section>
 
-          {/* Danh sách */}
-          <section className="rounded-3xl border border-emerald-300/15 bg-[#0b2235] p-5 shadow-2xl">
-            <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="m-0 text-[10px] font-black tracking-[0.15em] text-emerald-300">
-                  NGÂN HÀNG CÂU HỎI
-                </p>
+            {/* ================= QUESTION LIST ================= */}
 
-                <h2 className="mb-0 mt-1 text-xl font-black">
-                  Danh sách câu hỏi
-                </h2>
+            <section className="min-w-0 rounded-[28px] border border-white/10 bg-[#0a263a] p-5 shadow-xl sm:p-6">
+
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+                <div>
+
+                  <span className="text-xs font-black tracking-[0.14em] text-blue-300">
+                    NGÂN HÀNG CÂU HỎI
+                  </span>
+
+                  <h2 className="mt-1 text-2xl font-black">
+                    Danh sách câu hỏi
+                  </h2>
+
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void refreshData()
+                  }
+                  disabled={
+                    regionsLoading ||
+                    questionsLoading
+                  }
+                  className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-slate-300 hover:bg-white/5 disabled:opacity-50"
+                >
+                  ↻ Làm mới
+                </button>
+
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row">
+              {/* FILTER */}
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+
                 <input
-                  value={searchKeyword}
-                  onChange={(event) =>
-                    setSearchKeyword(
-                      event.target.value,
+                  type="search"
+                  value={
+                    search
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setSearch(
+                      event
+                        .target
+                        .value,
                     )
                   }
-                  placeholder="Tìm câu hỏi..."
-                  className="min-h-11 rounded-xl border border-white/10 bg-[#071a2a] px-4 text-sm outline-none transition placeholder:text-slate-600 focus:border-emerald-300/50"
+                  placeholder="Tìm câu hỏi, chủ đề..."
+                  className="h-12 rounded-xl border border-slate-600 bg-[#103149] px-4 outline-none focus:border-blue-400"
                 />
 
                 <select
-                  value={filterLevel}
-                  onChange={(event) => {
-                    const value =
-                      event.target.value;
-
-                    setFilterLevel(
-                      value === "all"
-                        ? "all"
-                        : (Number(
-                            value,
-                          ) as HSKLevel),
-                    );
-                  }}
-                  className="min-h-11 rounded-xl border border-white/10 bg-[#071a2a] px-4 text-sm outline-none focus:border-emerald-300/50"
+                  value={
+                    regionFilter
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setRegionFilter(
+                      event
+                        .target
+                        .value,
+                    )
+                  }
+                  className="h-12 rounded-xl border border-slate-600 bg-[#103149] px-3 outline-none focus:border-blue-400"
                 >
-                  <option value="all">
-                    Tất cả HSK
+
+                  <option value="">
+                    Tất cả tỉnh/thành
                   </option>
 
-                  {LEVELS.map((level) => (
-                    <option
-                      key={level}
-                      value={level}
-                    >
-                      HSK {level}
-                    </option>
-                  ))}
+                  {regions.map(
+                    (
+                      region,
+                    ) => (
+                      <option
+                        key={
+                          region.id
+                        }
+                        value={
+                          region.id
+                        }
+                      >
+                        {
+                          region.name
+                        }
+                      </option>
+                    ),
+                  )}
+
                 </select>
+
+                <select
+                  value={
+                    levelFilter
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setLevelFilter(
+                      event
+                        .target
+                        .value,
+                    )
+                  }
+                  className="h-12 rounded-xl border border-slate-600 bg-[#103149] px-3 outline-none focus:border-blue-400"
+                >
+
+                  <option value="">
+                    Tất cả cấp độ
+                  </option>
+
+                  {HSK_LEVELS.map(
+                    (
+                      level,
+                    ) => (
+                      <option
+                        key={
+                          level
+                        }
+                        value={
+                          level
+                        }
+                      >
+                        HSK{" "}
+                        {
+                          level
+                        }
+                      </option>
+                    ),
+                  )}
+
+                </select>
+
+                <select
+                  value={
+                    statusFilter
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setStatusFilter(
+                      event
+                        .target
+                        .value,
+                    )
+                  }
+                  className="h-12 rounded-xl border border-slate-600 bg-[#103149] px-3 outline-none focus:border-blue-400"
+                >
+
+                  <option value="">
+                    Tất cả trạng thái
+                  </option>
+
+                  <option value="active">
+                    Đang hoạt động
+                  </option>
+
+                  <option value="inactive">
+                    Đã ẩn
+                  </option>
+
+                </select>
+
               </div>
-            </div>
 
-            {filteredQuestions.length === 0 ? (
-              <div className="flex min-h-[420px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-7 text-center">
-                <div className="text-6xl">🗂️</div>
+              {/* LOADING */}
 
-                <h3 className="mb-2 mt-4 text-xl font-black">
-                  Chưa có câu hỏi
-                </h3>
+              {questionsLoading ? (
+                <div className="mt-8 grid min-h-56 place-items-center rounded-2xl border border-dashed border-white/10">
 
-                <p className="max-w-md text-sm leading-relaxed text-slate-400">
-                  Hãy sử dụng biểu mẫu bên trái để thêm
-                  câu hỏi đầu tiên vào ngân hàng.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {filteredQuestions.map(
-                  (question, index) => (
-                    <article
-                      key={question.id}
-                      className="rounded-2xl border border-white/10 bg-[#071b2c]/80 p-5 transition hover:border-emerald-300/25"
-                    >
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="min-w-0">
-                          <div className="mb-3 flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-emerald-300/10 px-3 py-1 text-[10px] font-black text-emerald-300">
-                              HSK {question.level}
-                            </span>
+                  <div className="text-center">
 
-                            <span className="rounded-full bg-blue-300/10 px-3 py-1 text-[10px] font-black text-blue-300">
-                              {question.topic}
-                            </span>
+                    <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-blue-300/20 border-t-blue-300" />
 
-                            <span className="text-[10px] text-slate-600">
-                              #{index + 1}
-                            </span>
-                          </div>
+                    <p className="mt-3 text-sm font-bold text-slate-400">
+                      Đang tải câu hỏi...
+                    </p>
 
-                          <h3 className="m-0 text-lg font-black leading-relaxed text-white">
-                            {question.question}
-                          </h3>
+                  </div>
 
-                          {question.pinyin && (
-                            <p className="mb-0 mt-1 text-sm italic text-amber-200/70">
-                              {question.pinyin}
-                            </p>
-                          )}
-                        </div>
+                </div>
+              ) : filteredQuestions.length ===
+                0 ? (
+                <div className="mt-8 rounded-2xl border border-dashed border-white/10 p-10 text-center">
 
-                        <div className="flex shrink-0 gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              startEditing(question)
-                            }
-                            className="rounded-xl border border-blue-300/20 bg-blue-300/10 px-4 py-2 text-xs font-bold text-blue-200 transition hover:bg-blue-300/20"
-                          >
-                            Sửa
-                          </button>
+                  <div className="text-5xl">
+                    📭
+                  </div>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              deleteQuestion(
-                                question.id,
-                              )
-                            }
-                            className="rounded-xl border border-red-300/20 bg-red-300/10 px-4 py-2 text-xs font-bold text-red-200 transition hover:bg-red-300/20"
-                          >
-                            Xóa
-                          </button>
-                        </div>
-                      </div>
+                  <h3 className="mt-4 text-xl font-black">
+                    Chưa có câu hỏi phù hợp
+                  </h3>
 
-                      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {question.options.map(
-                          (option, optionIndex) => (
-                            <div
-                              key={`${question.id}-${optionIndex}`}
-                              className={`flex items-center gap-3 rounded-xl border p-3 text-sm ${
-                                optionIndex ===
-                                question.correctIndex
-                                  ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-100"
-                                  : "border-white/5 bg-white/[0.025] text-slate-300"
-                              }`}
-                            >
-                              <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-white/5 text-xs font-black">
-                                {String.fromCharCode(
-                                  65 + optionIndex,
-                                )}
+                  <p className="mt-2 text-sm text-slate-400">
+                    Hãy thêm câu hỏi mới hoặc thay đổi bộ lọc.
+                  </p>
+
+                </div>
+              ) : (
+                <div className="mt-6 grid gap-4">
+
+                  {filteredQuestions.map(
+                    (
+                      question,
+                    ) => (
+                      <article
+                        key={
+                          question.id
+                        }
+                        className={`rounded-2xl border p-4 sm:p-5 ${
+                          question.isActive
+                            ? "border-white/10 bg-[#0c2c42]"
+                            : "border-amber-400/20 bg-amber-400/[0.04]"
+                        }`}
+                      >
+
+                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+
+                          <div className="min-w-0 flex-1">
+
+                            <div className="flex flex-wrap items-center gap-2">
+
+                              <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black text-emerald-300">
+                                HSK{" "}
+                                {
+                                  question.level
+                                }
                               </span>
 
-                              <span>{option}</span>
+                              <span className="rounded-full bg-blue-400/10 px-2.5 py-1 text-[10px] font-black text-blue-300">
+                                {
+                                  question.regionName
+                                }
+                              </span>
 
-                              {optionIndex ===
-                                question.correctIndex && (
-                                <span className="ml-auto text-emerald-300">
-                                  ✓
+                              {question.topic && (
+                                <span className="rounded-full bg-purple-400/10 px-2.5 py-1 text-[10px] font-black text-purple-300">
+                                  {
+                                    question.topic
+                                  }
                                 </span>
                               )}
+
+                              <span
+                                className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
+                                  question.isActive
+                                    ? "bg-emerald-400/10 text-emerald-300"
+                                    : "bg-amber-400/10 text-amber-300"
+                                }`}
+                              >
+                                {question.isActive
+                                  ? "● Hoạt động"
+                                  : "○ Đã ẩn"}
+                              </span>
+
                             </div>
-                          ),
-                        )}
-                      </div>
 
-                      <div className="mt-4 rounded-xl bg-white/[0.025] p-3 text-xs leading-relaxed text-slate-400">
-                        <strong className="text-slate-300">
-                          Giải thích:
-                        </strong>{" "}
-                        {question.explanation}
-                      </div>
-                    </article>
-                  ),
-                )}
-              </div>
-            )}
-          </section>
-        </div>
+                            <h3 className="mt-3 break-words text-lg font-black leading-relaxed text-white">
+                              {
+                                question.question
+                              }
+                            </h3>
+
+                            {question.pinyin && (
+                              <p className="mt-1 break-words text-sm italic text-amber-200">
+                                {
+                                  question.pinyin
+                                }
+                              </p>
+                            )}
+
+                            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+
+                              {question.options.map(
+                                (
+                                  option,
+                                  index,
+                                ) => (
+                                  <div
+                                    key={
+                                      index
+                                    }
+                                    className={`rounded-xl border px-3 py-2 text-sm ${
+                                      index ===
+                                      question.correctIndex
+                                        ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100"
+                                        : "border-white/10 bg-white/[0.03] text-slate-300"
+                                    }`}
+                                  >
+                                    <strong className="mr-2">
+                                      {
+                                        ANSWER_LABELS[
+                                          index
+                                        ]
+                                      }
+                                      .
+                                    </strong>
+
+                                    {
+                                      option
+                                    }
+
+                                    {index ===
+                                      question.correctIndex && (
+                                      <span className="ml-2 text-emerald-300">
+                                        ✓
+                                      </span>
+                                    )}
+
+                                  </div>
+                                ),
+                              )}
+
+                            </div>
+
+                            {question.hint && (
+                              <div className="mt-4 rounded-xl border border-amber-400/10 bg-amber-400/5 p-3 text-sm text-amber-100">
+                                <strong>
+                                  💡 Gợi ý:
+                                </strong>{" "}
+                                {
+                                  question.hint
+                                }
+                              </div>
+                            )}
+
+                            {question.explanation && (
+                              <div className="mt-3 rounded-xl border border-blue-400/10 bg-blue-400/5 p-3 text-sm leading-6 text-slate-300">
+                                <strong className="text-blue-200">
+                                  Giải thích:
+                                </strong>{" "}
+                                {
+                                  question.explanation
+                                }
+                              </div>
+                            )}
+
+                            <p className="mt-4 text-xs text-slate-500">
+                              Cập nhật:{" "}
+                              {formatDate(
+                                question.updatedAt ||
+                                  question.createdAt,
+                              )}
+                            </p>
+
+                          </div>
+
+                          <div className="grid shrink-0 grid-cols-3 gap-2 xl:w-[300px]">
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                startEditing(
+                                  question,
+                                )
+                              }
+                              className="min-h-11 rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 text-xs font-black text-blue-200 transition hover:bg-blue-400/20"
+                            >
+                              ✏️ Sửa
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={
+                                togglingId ===
+                                question.id
+                              }
+                              onClick={() =>
+                                void toggleQuestion(
+                                  question,
+                                )
+                              }
+                              className="min-h-11 rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 text-xs font-black text-amber-200 transition hover:bg-amber-400/20 disabled:opacity-50"
+                            >
+                              {togglingId ===
+                              question.id
+                                ? "..."
+                                : question.isActive
+                                  ? "Ẩn"
+                                  : "Bật"}
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={
+                                deletingId ===
+                                question.id
+                              }
+                              onClick={() =>
+                                void deleteQuestion(
+                                  question,
+                                )
+                              }
+                              className="min-h-11 rounded-xl border border-red-400/20 bg-red-400/10 px-3 text-xs font-black text-red-200 transition hover:bg-red-400/20 disabled:opacity-50"
+                            >
+                              {deletingId ===
+                              question.id
+                                ? "..."
+                                : "🗑 Xóa"}
+                            </button>
+
+                          </div>
+
+                        </div>
+
+                      </article>
+                    ),
+                  )}
+
+                </div>
+              )}
+
+            </section>
+
+          </div>
+
+        </section>
+
       </div>
+
     </main>
-  );
-}
-
-const inputClass =
-  "min-h-11 w-full rounded-xl border border-white/10 bg-[#071a2a] px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-300/50 focus:ring-2 focus:ring-emerald-300/10";
-
-function FormField({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-xs font-bold text-slate-300">
-        {label}
-      </span>
-
-      {children}
-    </label>
-  );
-}
-
-function AnswerInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <FormField label={label}>
-      <input
-        value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
-        className={inputClass}
-      />
-    </FormField>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number;
-  color:
-    | "emerald"
-    | "blue"
-    | "amber"
-    | "orange"
-    | "red";
-}) {
-  const colorClasses = {
-    emerald:
-      "border-emerald-300/20 bg-emerald-300/10 text-emerald-300",
-    blue:
-      "border-blue-300/20 bg-blue-300/10 text-blue-300",
-    amber:
-      "border-amber-300/20 bg-amber-300/10 text-amber-300",
-    orange:
-      "border-orange-300/20 bg-orange-300/10 text-orange-300",
-    red:
-      "border-red-300/20 bg-red-300/10 text-red-300",
-  };
-
-  return (
-    <article
-      className={`rounded-2xl border p-4 ${colorClasses[color]}`}
-    >
-      <span className="text-[10px] font-black tracking-wider opacity-75">
-        {label}
-      </span>
-
-      <strong className="mt-1 block text-3xl font-black">
-        {value}
-      </strong>
-    </article>
   );
 }

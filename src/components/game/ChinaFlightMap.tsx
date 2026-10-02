@@ -1,712 +1,587 @@
-
+"use client";
 
 import {
-  ComposableMap,
-  Geographies,
-  Geography,
-  Line,
-  Marker,
-} from "react-simple-maps";
+  useMemo,
+} from "react";
 
-import type { Region } from "@/types/game";
+interface MapRegion {
+  id: string;
 
-const MAP_DATA_URL =
-  "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+  name: string;
 
-interface FlightPoint {
-  regionId: string;
-  coordinates: [number, number];
+  chineseName: string;
+
+  pinyin: string;
+
+  mapX?: number;
+
+  mapY?: number;
+
+  color?: string;
+
+  flightOrder?: number;
+
+  isActive?: boolean;
 }
-
-const FLIGHT_ROUTE: FlightPoint[] = [
-  {
-    regionId: "beijing",
-    coordinates: [116.4074, 39.9042],
-  },
-  {
-    regionId: "xian",
-    coordinates: [108.9398, 34.3416],
-  },
-  {
-    regionId: "chengdu",
-    coordinates: [104.0665, 30.5728],
-  },
-  {
-    regionId: "guilin",
-    coordinates: [110.2902, 25.2736],
-  },
-];
 
 interface ChinaFlightMapProps {
   progress: number;
-  currentRegion: Region;
-  preview?: boolean;
-  onJump?: () => void;
+
+  currentRegion: MapRegion;
+
+  regions?: MapRegion[];
+
+  onJump: () => void;
 }
 
-function getPlanePosition(
-  progress: number,
-): [number, number] {
-  const normalizedProgress =
-    ((progress % 100) + 100) % 100;
-
-  const scaledProgress =
-    (normalizedProgress / 100) * FLIGHT_ROUTE.length;
-
-  const currentIndex =
-    Math.floor(scaledProgress) % FLIGHT_ROUTE.length;
-
-  const nextIndex =
-    (currentIndex + 1) % FLIGHT_ROUTE.length;
-
-  const segmentProgress =
-    scaledProgress - Math.floor(scaledProgress);
-
-  const currentPoint =
-    FLIGHT_ROUTE[currentIndex].coordinates;
-
-  const nextPoint =
-    FLIGHT_ROUTE[nextIndex].coordinates;
-
-  const longitude =
-    currentPoint[0] +
-    (nextPoint[0] - currentPoint[0]) *
-      segmentProgress;
-
-  const latitude =
-    currentPoint[1] +
-    (nextPoint[1] - currentPoint[1]) *
-      segmentProgress;
-
-  return [longitude, latitude];
+function clamp(
+  value: number,
+) {
+  return Math.min(
+    92,
+    Math.max(
+      8,
+      value,
+    ),
+  );
 }
 
-function getPlaneRotation(progress: number) {
-  const normalizedProgress =
-    ((progress % 100) + 100) % 100;
-
-  const scaledProgress =
-    (normalizedProgress / 100) * FLIGHT_ROUTE.length;
-
-  const currentIndex =
-    Math.floor(scaledProgress) % FLIGHT_ROUTE.length;
-
-  const nextIndex =
-    (currentIndex + 1) % FLIGHT_ROUTE.length;
-
-  const currentPoint =
-    FLIGHT_ROUTE[currentIndex].coordinates;
-
-  const nextPoint =
-    FLIGHT_ROUTE[nextIndex].coordinates;
-
-  const deltaX = nextPoint[0] - currentPoint[0];
-  const deltaY = nextPoint[1] - currentPoint[1];
-
-  return Math.atan2(-deltaY, deltaX) * (180 / Math.PI);
-}
-
-function getRegionName(regionId: string) {
-  switch (regionId) {
-    case "beijing":
-      return "Bắc Kinh";
-
-    case "xian":
-      return "Tây An";
-
-    case "chengdu":
-      return "Thành Đô";
-
-    case "guilin":
-      return "Quế Lâm";
-
-    default:
-      return "";
+function getRegionX(
+  region: MapRegion,
+  index: number,
+  total: number,
+) {
+  if (
+    typeof region.mapX ===
+      "number" &&
+    Number.isFinite(
+      region.mapX,
+    )
+  ) {
+    return clamp(
+      region.mapX,
+    );
   }
+
+  if (total <= 1) {
+    return 50;
+  }
+
+  return (
+    15 +
+    (index /
+      (total - 1)) *
+      70
+  );
+}
+
+function getRegionY(
+  region: MapRegion,
+  index: number,
+) {
+  if (
+    typeof region.mapY ===
+      "number" &&
+    Number.isFinite(
+      region.mapY,
+    )
+  ) {
+    return clamp(
+      region.mapY,
+    );
+  }
+
+  const fallback = [
+    30,
+    55,
+    38,
+    67,
+    45,
+    72,
+    25,
+    60,
+  ];
+
+  return fallback[
+    index %
+      fallback.length
+  ];
 }
 
 export default function ChinaFlightMap({
   progress,
   currentRegion,
-  preview = false,
+  regions = [],
   onJump,
 }: ChinaFlightMapProps) {
-  const planePosition = getPlanePosition(progress);
-  const planeRotation = getPlaneRotation(progress);
+  /**
+   * Chỉ lấy tỉnh active.
+   *
+   * Sau đó sắp xếp đúng thứ tự bay.
+   */
+  const displayedRegions =
+    useMemo(() => {
+      const source =
+        regions.length > 0
+          ? regions
+          : [
+              currentRegion,
+            ];
+
+      const filtered =
+        source.filter(
+          (region) =>
+            region &&
+            region.id &&
+            region.isActive !==
+              false,
+        );
+
+      return [
+        ...filtered,
+      ].sort(
+        (a, b) =>
+          (a.flightOrder ??
+            0) -
+          (b.flightOrder ??
+            0),
+      );
+    }, [
+      regions,
+      currentRegion,
+    ]);
+
+  const normalizedProgress =
+    ((progress % 100) +
+      100) %
+    100;
+
+  const flightData =
+    useMemo(() => {
+      const total =
+        displayedRegions.length;
+
+      const points =
+        displayedRegions.map(
+          (
+            region,
+            index,
+          ) => ({
+            region,
+
+            x: getRegionX(
+              region,
+              index,
+              total,
+            ),
+
+            y: getRegionY(
+              region,
+              index,
+            ),
+          }),
+        );
+
+      if (
+        points.length === 0
+      ) {
+        return {
+          points: [],
+
+          planeX: 50,
+
+          planeY: 50,
+
+          rotation: 0,
+
+          path: "",
+        };
+      }
+
+      if (
+        points.length === 1
+      ) {
+        return {
+          points,
+
+          planeX:
+            points[0].x,
+
+          planeY:
+            points[0].y,
+
+          rotation: 0,
+
+          path: "",
+        };
+      }
+
+      /**
+       * Máy bay đi lần lượt
+       * qua các tỉnh theo flightOrder.
+       */
+      const exactPosition =
+        (normalizedProgress /
+          100) *
+        points.length;
+
+      const fromIndex =
+        Math.floor(
+          exactPosition,
+        ) %
+        points.length;
+
+      const toIndex =
+        (fromIndex + 1) %
+        points.length;
+
+      const localProgress =
+        exactPosition -
+        Math.floor(
+          exactPosition,
+        );
+
+      const from =
+        points[fromIndex];
+
+      const to =
+        points[toIndex];
+
+      const planeX =
+        from.x +
+        (to.x - from.x) *
+          localProgress;
+
+      const planeY =
+        from.y +
+        (to.y - from.y) *
+          localProgress;
+
+      const rotation =
+        (Math.atan2(
+          to.y -
+            from.y,
+
+          to.x -
+            from.x,
+        ) *
+          180) /
+        Math.PI;
+
+      /**
+       * Đường bay nối toàn bộ tỉnh.
+       */
+      const path = [
+        ...points,
+        points[0],
+      ]
+        .map(
+          (point) =>
+            `${point.x},${point.y}`,
+        )
+        .join(" ");
+
+      return {
+        points,
+
+        planeX,
+
+        planeY,
+
+        rotation,
+
+        path,
+      };
+    }, [
+      displayedRegions,
+      normalizedProgress,
+    ]);
 
   return (
-    <section className="flight-map-shell">
-      <div className="flight-map-topbar">
-        <div className="flight-status">
-          <span className="flight-live-dot" />
+    <section className="relative w-full overflow-hidden rounded-[22px] border border-cyan-300/20 bg-[#071c2d] shadow-[0_24px_70px_rgba(0,8,20,0.45)] sm:rounded-[28px]">
 
-          <span>
-            {preview
-              ? "Tuyến khám phá đất liền"
-              : "Chuyến bay đang hoạt động"}
+      {/* BACKGROUND */}
+
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(34,211,238,0.12),transparent_30%),radial-gradient(circle_at_80%_75%,rgba(52,211,153,0.1),transparent_32%),linear-gradient(145deg,#0d3048_0%,#071c2d_52%,#04131f_100%)]" />
+
+      {/* HEADER */}
+
+      <header className="relative z-20 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-white/[0.07] bg-[#061a29]/90 p-4 backdrop-blur-md sm:p-6">
+        <div className="min-w-0">
+
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            <span className="rounded-full bg-cyan-300/10 px-2.5 py-1 text-[9px] font-black tracking-widest text-cyan-200 sm:px-3 sm:text-xs">
+              HÀNH TRÌNH KHÁM PHÁ
+            </span>
+
+            <span className="rounded-full bg-emerald-300/10 px-2.5 py-1 text-[9px] font-black text-emerald-200 sm:px-3 sm:text-xs">
+              {
+                displayedRegions.length
+              }{" "}
+              ĐIỂM
+            </span>
+          </div>
+
+          <h2 className="truncate text-base font-black text-white sm:text-2xl lg:text-3xl">
+            Bản đồ Trung Quốc
+          </h2>
+
+          <p className="mt-1 truncate text-xs text-slate-400 sm:text-sm">
+            Đang qua{" "}
+
+            <strong className="text-amber-200">
+              {
+                currentRegion.name
+              }
+            </strong>
+          </p>
+        </div>
+
+        <div className="flex min-w-[66px] shrink-0 flex-col items-center rounded-xl border border-white/10 bg-white/5 px-2.5 py-2 sm:min-w-[100px] sm:flex-row sm:gap-3 sm:px-4 sm:py-3">
+          <span className="text-lg sm:text-xl">
+            ✈️
           </span>
+
+          <div className="text-center sm:text-left">
+            <span className="hidden text-[9px] font-black tracking-widest text-slate-500 sm:block">
+              TIẾN ĐỘ
+            </span>
+
+            <strong className="text-sm text-amber-200 sm:text-lg">
+              {Math.round(
+                normalizedProgress,
+              )}
+              %
+            </strong>
+          </div>
         </div>
+      </header>
 
-        <span className="flight-map-progress">
-          {Math.round(progress)}%
-        </span>
-      </div>
+      {/* MAP */}
 
-      <div className="flight-map">
-        <div className="flight-map-sun" />
+      <div className="relative z-10 h-[350px] w-full sm:h-[500px] lg:h-[600px]">
 
-        <div className="flight-map-cloud flight-cloud-one">
-          ☁
-        </div>
+        {/* GRID */}
 
-        <div className="flight-map-cloud flight-cloud-two">
-          ☁
-        </div>
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.35) 1px, transparent 1px)",
 
-        <ComposableMap
-          projection="geoMercator"
-          projectionConfig={{
-            center: [104, 36],
-            scale: 790,
+            backgroundSize:
+              "36px 36px",
           }}
-          width={1000}
-          height={620}
-          className="china-svg-map"
-          aria-label="Bản đồ tuyến bay trên đất liền Trung Quốc"
-        >
-          <defs>
-            {/* Màu sắc minh họa vùng trải nghiệm */}
-            <pattern
-              id="chinaColorMap"
-              width="1000"
-              height="620"
-              patternUnits="userSpaceOnUse"
-            >
-              <rect
-                width="1000"
-                height="620"
-                fill="#f5c242"
-              />
+        />
 
-              <path
-                d="M0 0 H430 L460 180 L360 310 L0 340 Z"
-                fill="#f44f4f"
-              />
+        {/* CHINA SHAPE */}
 
-              <path
-                d="M320 0 H650 L670 190 L490 290 L400 170 Z"
-                fill="#ff922f"
-              />
+        <div className="pointer-events-none absolute inset-[8%_3%_8%] sm:inset-[8%_7%_10%]">
+          <div
+            className="absolute inset-0 border border-cyan-200/10 bg-gradient-to-br from-cyan-300/[0.1] via-emerald-300/[0.05] to-blue-400/[0.07]"
+            style={{
+              clipPath:
+                "polygon(10% 30%, 18% 12%, 38% 8%, 50% 16%, 67% 10%, 82% 22%, 94% 39%, 88% 54%, 96% 68%, 79% 78%, 72% 92%, 52% 86%, 37% 95%, 24% 79%, 8% 72%, 13% 56%, 3% 44%)",
+            }}
+          />
+        </div>
 
-              <path
-                d="M610 0 H1000 V250 L790 310 L650 180 Z"
-                fill="#55b3e4"
-              />
+        {/* FLIGHT PATH */}
 
-              <path
-                d="M0 300 L350 270 L480 430 L330 620 H0 Z"
-                fill="#67b5d8"
-              />
+        {flightData.path && (
+          <svg
+            className="pointer-events-none absolute inset-0 size-full"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <polyline
+              points={
+                flightData.path
+              }
+              fill="none"
+              stroke="rgba(103,232,249,0.65)"
+              strokeWidth="0.4"
+              strokeDasharray="1.5 1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
 
-              <path
-                d="M330 230 L590 190 L680 390 L510 540 L410 430 Z"
-                fill="#93cf22"
-              />
+        {/* REGIONS */}
 
-              <path
-                d="M570 180 L820 200 L850 410 L650 480 L610 340 Z"
-                fill="#ff872b"
-              />
+        {flightData.points.map(
+          ({
+            region,
+            x,
+            y,
+          }) => {
+            const isCurrent =
+              region.id ===
+              currentRegion.id;
 
-              <path
-                d="M780 230 H1000 V500 L810 560 L700 410 Z"
-                fill="#ed5d67"
-              />
+            const color =
+              region.color ||
+              "#34d399";
 
-              <path
-                d="M430 410 L690 350 L790 620 H480 L340 530 Z"
-                fill="#4ac4ca"
-              />
+            return (
+              <div
+                key={
+                  region.id
+                }
+                className="group absolute z-20 -translate-x-1/2 -translate-y-1/2"
+                style={{
+                  left: `${x}%`,
 
-              <path
-                d="M680 400 L1000 370 V620 H750 Z"
-                fill="#a2cd31"
-              />
-
-              {/* Các đường chia vùng trang trí */}
-              <g
-                fill="none"
-                stroke="#fff3c3"
-                strokeWidth="5"
-                opacity="0.46"
+                  top: `${y}%`,
+                }}
               >
-                <path d="M430 0 L400 170 L490 290 L350 270" />
-                <path d="M650 0 L650 180 L790 310" />
-                <path d="M350 270 L480 430 L340 530" />
-                <path d="M590 190 L610 340 L510 540" />
-                <path d="M820 200 L700 410 L790 620" />
-              </g>
-
-              {/* Chấm trang trí địa hình */}
-              <g
-                fill="#ffffff"
-                opacity="0.16"
-              >
-                <circle cx="230" cy="210" r="8" />
-                <circle cx="265" cy="232" r="5" />
-                <circle cx="485" cy="290" r="7" />
-                <circle cx="525" cy="315" r="5" />
-                <circle cx="700" cy="220" r="8" />
-                <circle cx="738" cy="249" r="5" />
-                <circle cx="615" cy="480" r="8" />
-                <circle cx="650" cy="510" r="5" />
-              </g>
-            </pattern>
-
-            {/* Gradient máy bay */}
-            <linearGradient
-              id="airplaneBody"
-              x1="0"
-              y1="0"
-              x2="1"
-              y2="1"
-            >
-              <stop
-                offset="0%"
-                stopColor="#ffffff"
-              />
-
-              <stop
-                offset="45%"
-                stopColor="#edf4f7"
-              />
-
-              <stop
-                offset="100%"
-                stopColor="#91aab6"
-              />
-            </linearGradient>
-
-            <linearGradient
-              id="airplaneWing"
-              x1="0"
-              y1="0"
-              x2="1"
-              y2="1"
-            >
-              <stop
-                offset="0%"
-                stopColor="#e7fbff"
-              />
-
-              <stop
-                offset="100%"
-                stopColor="#759bab"
-              />
-            </linearGradient>
-
-            <linearGradient
-              id="airplaneWindow"
-              x1="0"
-              y1="0"
-              x2="1"
-              y2="1"
-            >
-              <stop
-                offset="0%"
-                stopColor="#80eaff"
-              />
-
-              <stop
-                offset="100%"
-                stopColor="#075b87"
-              />
-            </linearGradient>
-
-            <radialGradient id="airplaneRadar">
-              <stop
-                offset="0%"
-                stopColor="#ffd166"
-                stopOpacity="0.3"
-              />
-
-              <stop
-                offset="70%"
-                stopColor="#ffd166"
-                stopOpacity="0.08"
-              />
-
-              <stop
-                offset="100%"
-                stopColor="#ffd166"
-                stopOpacity="0"
-              />
-            </radialGradient>
-
-            <filter
-              id="chinaShadow"
-              x="-30%"
-              y="-30%"
-              width="160%"
-              height="160%"
-            >
-              <feDropShadow
-                dx="0"
-                dy="18"
-                stdDeviation="14"
-                floodColor="#00111f"
-                floodOpacity="0.62"
-              />
-            </filter>
-
-            <filter
-              id="realPlaneShadow"
-              x="-150%"
-              y="-150%"
-              width="400%"
-              height="400%"
-            >
-              <feDropShadow
-                dx="0"
-                dy="7"
-                stdDeviation="6"
-                floodColor="#00121e"
-                floodOpacity="0.9"
-              />
-
-              <feDropShadow
-                dx="0"
-                dy="0"
-                stdDeviation="9"
-                floodColor="#ffd166"
-                floodOpacity="0.9"
-              />
-            </filter>
-
-            <filter
-              id="lightGlow"
-              x="-400%"
-              y="-400%"
-              width="900%"
-              height="900%"
-            >
-              <feGaussianBlur
-                stdDeviation="2.5"
-                result="blur"
-              />
-
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
-          {/* Bản đồ */}
-          <Geographies geography={MAP_DATA_URL}>
-            {({ geographies }) =>
-              geographies.map((geography) => {
-                const countryName =
-                  geography.properties?.name;
-
-                const isChina =
-                  String(geography.id) === "156" ||
-                  countryName === "China";
-
-                if (!isChina) return null;
-
-                return (
-                  <Geography
-                    key={geography.rsmKey}
-                    geography={geography}
-                    fill="url(#chinaColorMap)"
-                    stroke="#ffe082"
-                    strokeWidth={2.3}
-                    filter="url(#chinaShadow)"
+                {isCurrent && (
+                  <span
+                    className="absolute left-1/2 top-1/2 size-14 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full opacity-20"
                     style={{
-                      outline: "none",
+                      backgroundColor:
+                        color,
                     }}
                   />
-                );
-              })
-            }
-          </Geographies>
-
-          {/* Tuyến bay nét đứt */}
-          {FLIGHT_ROUTE.map((point, index) => {
-            const nextPoint =
-              FLIGHT_ROUTE[
-                (index + 1) % FLIGHT_ROUTE.length
-              ];
-
-            return (
-              <Line
-                key={`${point.regionId}-${nextPoint.regionId}`}
-                from={point.coordinates}
-                to={nextPoint.coordinates}
-                stroke="#ffffff"
-                strokeWidth={5}
-                strokeLinecap="round"
-                strokeDasharray="4 12"
-                opacity={0.95}
-              />
-            );
-          })}
-
-          {/* Các điểm đến */}
-          {FLIGHT_ROUTE.map((point) => {
-            const isActive =
-              point.regionId === currentRegion.id;
-
-            return (
-              <Marker
-                key={point.regionId}
-                coordinates={point.coordinates}
-              >
-                {isActive && (
-                  <>
-                    <circle
-                      r={33}
-                      fill="#ffd166"
-                      opacity={0.25}
-                      className="flight-radar-ring"
-                    />
-
-                    <circle
-                      r={22}
-                      fill="none"
-                      stroke="#fff1b8"
-                      strokeWidth={2}
-                      opacity={0.9}
-                    />
-                  </>
                 )}
 
-                <circle
-                  r={isActive ? 12 : 10}
-                  fill={isActive ? "#ffd166" : "#ffffff"}
-                  stroke="#07364c"
-                  strokeWidth={4}
+                {/* POINT */}
+
+                <span
+                  className={`relative block rounded-full border-2 border-white shadow-xl ${
+                    isCurrent
+                      ? "size-7 sm:size-8"
+                      : "size-5 sm:size-6"
+                  }`}
+                  style={{
+                    backgroundColor:
+                      color,
+
+                    boxShadow: `0 0 18px ${color}88`,
+                  }}
                 />
 
-                <text
-                  textAnchor="middle"
-                  y={-28}
-                  className="flight-city-label"
+                {/* LABEL
+                    Luôn hiển thị để nhìn thấy tất cả tỉnh.
+                */}
+
+                <div
+                  className={`absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-center shadow-xl backdrop-blur-md ${
+                    isCurrent
+                      ? "border-amber-300/40 bg-[#061827] ring-1 ring-amber-300/20"
+                      : "border-white/10 bg-[#061827]/95"
+                  }`}
                 >
-                  {getRegionName(point.regionId)}
-                </text>
-              </Marker>
+                  <strong
+                    className={`block text-[10px] sm:text-xs ${
+                      isCurrent
+                        ? "text-amber-200"
+                        : "text-white"
+                    }`}
+                  >
+                    {
+                      region.name
+                    }
+                  </strong>
+
+                  <span
+                    lang="zh-CN"
+                    className="block text-[9px] text-amber-200/80 sm:text-[10px]"
+                  >
+                    {region.chineseName ||
+                      region.pinyin ||
+                      ""}
+                  </span>
+                </div>
+              </div>
             );
-          })}
+          },
+        )}
 
-          {/* Máy bay */}
-          <Marker coordinates={planePosition}>
-            <g className="flight-airplane-wrapper">
-              {/* Vùng phát sáng */}
-              <circle
-                r={58}
-                fill="url(#airplaneRadar)"
-                className="flight-airplane-glow"
-              />
+        {/* PLANE */}
 
-              {/* Vòng radar xoay */}
-              <circle
-                r={46}
-                fill="none"
-                stroke="#ffd166"
-                strokeWidth={2}
-                strokeDasharray="7 7"
-                className="flight-plane-radar"
-              />
+        {flightData.points.length >
+          0 && (
+          <div
+            className="pointer-events-none absolute z-30 -translate-x-1/2 -translate-y-1/2 transition-[left,top] duration-300 ease-linear"
+            style={{
+              left: `${flightData.planeX}%`,
 
-              <g
-                transform={`rotate(${planeRotation}) scale(1.15)`}
-                filter="url(#realPlaneShadow)"
-                className="flight-real-airplane"
-              >
-                {/* Cánh trên */}
-                <path
-                  d="
-                    M 9 -5
-                    L -10 -33
-                    Q -13 -38 -19 -37
-                    L -25 -34
-                    L -13 -4
-                    L 7 4
-                    Z
-                  "
-                  fill="url(#airplaneWing)"
-                  stroke="#375d6e"
-                  strokeWidth={1.5}
-                />
+              top: `${flightData.planeY}%`,
+            }}
+          >
+            <span
+              className="block text-3xl drop-shadow-[0_0_12px_rgba(251,191,36,0.9)] sm:text-4xl lg:text-5xl"
+              style={{
+                transform: `rotate(${flightData.rotation}deg)`,
+              }}
+            >
+              ✈️
+            </span>
+          </div>
+        )}
 
-                {/* Cánh dưới */}
-                <path
-                  d="
-                    M 9 5
-                    L -10 33
-                    Q -13 38 -19 37
-                    L -25 34
-                    L -13 4
-                    L 7 -4
-                    Z
-                  "
-                  fill="url(#airplaneWing)"
-                  stroke="#375d6e"
-                  strokeWidth={1.5}
-                />
+        {/* INFO */}
 
-                {/* Đuôi */}
-                <path
-                  d="
-                    M -25 -3
-                    L -37 -17
-                    L -42 -15
-                    L -35 0
-                    L -42 15
-                    L -37 17
-                    L -25 3
-                    Z
-                  "
-                  fill="#d9e9ed"
-                  stroke="#375d6e"
-                  strokeWidth={1.5}
-                />
+        <div className="absolute bottom-5 left-5 z-30 hidden max-w-xs rounded-2xl border border-white/10 bg-[#061a29]/90 p-4 backdrop-blur-lg sm:block">
+          <strong className="text-sm text-white">
+            🧭 Chọn đúng thời điểm
+          </strong>
 
-                {/* Thân */}
-                <path
-                  d="
-                    M 42 0
-                    Q 34 -9 20 -10
-                    L -28 -8
-                    Q -37 -7 -41 0
-                    Q -37 7 -28 8
-                    L 20 10
-                    Q 34 9 42 0
-                    Z
-                  "
-                  fill="url(#airplaneBody)"
-                  stroke="#31596a"
-                  strokeWidth={2}
-                />
-
-                {/* Kính lái */}
-                <path
-                  d="
-                    M 27 -5
-                    Q 36 -3 39 0
-                    Q 36 3 27 5
-                    Q 30 0 27 -5
-                    Z
-                  "
-                  fill="url(#airplaneWindow)"
-                  stroke="#064d71"
-                  strokeWidth={1}
-                />
-
-                {/* Sọc đỏ */}
-                <path
-                  d="M -24 0 L 24 0"
-                  fill="none"
-                  stroke="#ef4d56"
-                  strokeWidth={2.8}
-                  strokeLinecap="round"
-                />
-
-                {/* Động cơ */}
-                <ellipse
-                  cx="-6"
-                  cy="-18"
-                  rx="7"
-                  ry="4.5"
-                  fill="#426878"
-                  stroke="#e4f9fc"
-                  strokeWidth={1}
-                />
-
-                <ellipse
-                  cx="-6"
-                  cy="18"
-                  rx="7"
-                  ry="4.5"
-                  fill="#426878"
-                  stroke="#e4f9fc"
-                  strokeWidth={1}
-                />
-
-                {/* Đèn đỏ nhấp nháy */}
-                <circle
-                  cx="-20"
-                  cy="-35"
-                  r="3.5"
-                  fill="#ff3045"
-                  filter="url(#lightGlow)"
-                  className="flight-plane-red-light"
-                />
-
-                {/* Đèn xanh nhấp nháy */}
-                <circle
-                  cx="-20"
-                  cy="35"
-                  r="3.5"
-                  fill="#27f29c"
-                  filter="url(#lightGlow)"
-                  className="flight-plane-green-light"
-                />
-
-                {/* Đèn đầu máy bay */}
-                <circle
-                  cx="40"
-                  cy="0"
-                  r="3"
-                  fill="#ffffff"
-                  filter="url(#lightGlow)"
-                  className="flight-plane-head-light"
-                />
-              </g>
-            </g>
-          </Marker>
-        </ComposableMap>
-
-        <div className="flight-map-title">
-          <strong>中华探索之旅</strong>
-          <span>Hành trình khám phá Trung Hoa</span>
-        </div>
-
-        <div className="flight-map-note">
-          Màu sắc minh họa vùng trải nghiệm
+          <p className="mt-1 text-xs leading-5 text-slate-400">
+            Khi máy bay đi qua tỉnh
+            muốn khám phá, hãy bấm
+            nhảy xuống.
+          </p>
         </div>
       </div>
 
-      {!preview && (
-        <div className="flight-location-panel">
-          <div className="flight-location-icon">📍</div>
+      {/* FOOTER */}
 
-          <div className="flight-location-content">
-            <span>ĐANG ĐI QUA</span>
+      <footer className="relative z-20 border-t border-white/[0.07] bg-[#061a29]/95 p-4 backdrop-blur-md sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <span className="text-[9px] font-black tracking-widest text-emerald-300 sm:text-xs">
+              VỊ TRÍ HIỆN TẠI
+            </span>
 
-            <h2>
-              {currentRegion.name} ·{" "}
-              <span lang="zh-CN">
-                {currentRegion.chineseName}
+            <div className="mt-1 flex min-w-0 items-baseline gap-2">
+              <strong className="truncate text-lg font-black text-white sm:text-2xl">
+                {
+                  currentRegion.name
+                }
+              </strong>
+
+              <span
+                lang="zh-CN"
+                className="shrink-0 text-base font-bold text-amber-200 sm:text-lg"
+              >
+                {
+                  currentRegion.chineseName
+                }
               </span>
-            </h2>
+            </div>
 
-            <p>{currentRegion.pinyin}</p>
+            <p className="mt-1 truncate text-xs italic text-slate-400 sm:text-sm">
+              {
+                currentRegion.pinyin
+              }
+            </p>
           </div>
 
           <button
             type="button"
-            className="flight-jump-button"
-            onClick={onJump}
-            disabled={!onJump}
+            onClick={
+              onJump
+            }
+            className="min-h-12 w-full rounded-xl bg-gradient-to-r from-amber-300 to-orange-300 px-5 text-sm font-black text-[#302009] shadow-[0_10px_30px_rgba(251,191,36,0.18)] transition hover:-translate-y-0.5 sm:w-auto sm:min-w-[230px]"
           >
-            <span>🪂</span>
-            Nhảy dù tại đây
+            🪂 NHẢY XUỐNG
           </button>
         </div>
-      )}
+      </footer>
     </section>
   );
 }

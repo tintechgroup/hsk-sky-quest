@@ -2374,3 +2374,47 @@ body {
     animation: none;
   }
 }
+/*
+ * Font chữ chung cho toàn bộ website.
+ * Đặt cuối file để ghi đè font cũ nhưng không làm mất CSS game.
+ */
+html,
+body {
+  font-family:
+    var(--font-roboto),
+    Arial,
+    Helvetica,
+    sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+span,
+strong,
+b,
+small,
+label,
+a,
+button,
+input,
+textarea,
+select,
+option {
+  font-family:
+    var(--font-roboto),
+    Arial,
+    Helvetica,
+    sans-serif !important;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}

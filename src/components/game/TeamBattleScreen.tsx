@@ -1,529 +1,452 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
 } from "react";
 
+import {
+  useBattleQuestionsContext,
+} from "@/contexts/BattleQuestionsContext";
+
+import type {
+  MatchmakingMatch,
+  MatchmakingPlayer,
+} from "@/components/game/MatchmakingScreen";
+
 import type {
   HSKLevel,
   Inventory,
-  Region,
 } from "@/types/game";
 
-interface BattleQuestion {
-  id: string;
-  level: HSKLevel;
-  topic: string;
-  question: string;
-  pinyin?: string;
-  options: string[];
-  correctIndex: number;
-  hint: string;
-  explanation: string;
-}
+import type {
+  GameQuestion,
+} from "@/types/question";
+
+import type {
+  Region,
+} from "@/types/region";
 
 interface TeamBattleScreenProps {
   level: HSKLevel;
   region: Region;
+  match: MatchmakingMatch;
   initialInventory: Inventory;
   onRestart: () => void;
 }
 
-interface TeamMember {
-  id: string;
-  name: string;
-  avatar: string;
-  role: string;
-}
-
-interface ErrorLogItem {
-  questionId: string;
-  level: HSKLevel;
-  topic: string;
-  question: string;
-  pinyin?: string;
-  selectedAnswer: string;
-  correctAnswer: string;
-  explanation: string;
-  wrongCount: number;
-  reviewed: boolean;
-  updatedAt: string;
-}
-
 type BattleStage =
-  | "matching"
   | "battle"
+  | "waiting-result"
   | "result";
 
-type Winner = "red" | "blue" | "draw";
+type Winner =
+  | "red"
+  | "blue"
+  | "draw";
 
-const QUESTION_STORAGE_KEY =
-  "hsk-admin-question-bank";
+interface FinalResult {
+  winner: Winner;
 
-const QUESTION_TIME = 30;
+  redScore: number;
+  blueScore: number;
 
-const RED_TEAM: TeamMember[] = [
-  {
-    id: "red-1",
-    name: "Bạn",
-    avatar: "🧑‍✈️",
-    role: "Đội trưởng",
-  },
-  {
-    id: "red-2",
-    name: "Tiểu Minh",
-    avatar: "👨‍🎓",
-    role: "Đồng đội",
-  },
-  {
-    id: "red-3",
-    name: "Linh Linh",
-    avatar: "👩‍🎓",
-    role: "Đồng đội",
-  },
-];
+  redTime: number;
+  blueTime: number;
 
-const BLUE_TEAM: TeamMember[] = [
-  {
-    id: "blue-1",
-    name: "Hạo Nhiên",
-    avatar: "🧑‍🚀",
-    role: "Đội trưởng",
-  },
-  {
-    id: "blue-2",
-    name: "Gia Ninh",
-    avatar: "👨‍🎓",
-    role: "Đối thủ",
-  },
-  {
-    id: "blue-3",
-    name: "Tiểu Vũ",
-    avatar: "👩‍🎓",
-    role: "Đối thủ",
-  },
-];
-
-/*
- * Kết quả mô phỏng của hai đồng đội Đỏ.
- * Mỗi hàng tương ứng với một câu hỏi.
- */
-const RED_TEAMMATE_RESULTS = [
-  [true, false],
-  [true, true],
-  [false, true],
-];
-
-/*
- * Kết quả mô phỏng của ba thành viên Đội Xanh.
- */
-const BLUE_TEAM_RESULTS = [
-  [true, true, false],
-  [true, false, true],
-  [true, true, true],
-];
-
-const RED_TEAMMATE_TIMES = [
-  [8, 0],
-  [9, 11],
-  [0, 8],
-];
-
-const BLUE_TEAM_TIMES = [
-  [7, 9, 0],
-  [8, 0, 11],
-  [7, 10, 9],
-];
-
-const DEFAULT_QUESTIONS: BattleQuestion[] = [
-  // ==================== HSK 3 ====================
-
-  {
-    id: "default-hsk3-01",
-    level: 3,
-    topic: "Từ vựng",
-    question: "我每天早上七点___。",
-    pinyin:
-      "Wǒ měitiān zǎoshang qī diǎn ___.",
-    options: ["起床", "睡觉", "下班", "休息"],
-    correctIndex: 0,
-    hint: "Hành động thường làm vào buổi sáng.",
-    explanation:
-      '"起床" nghĩa là thức dậy. Câu này có nghĩa: Tôi thức dậy lúc 7 giờ mỗi sáng.',
-  },
-  {
-    id: "default-hsk3-02",
-    level: 3,
-    topic: "Ngữ pháp",
-    question: "她唱歌唱___很好。",
-    pinyin:
-      "Tā chànggē chàng ___ hěn hǎo.",
-    options: ["了", "得", "过", "着"],
-    correctIndex: 1,
-    hint:
-      "Cần một trợ từ bổ sung mức độ sau động từ.",
-    explanation:
-      '"得" được đặt sau động từ để bổ sung mức độ. Câu này nghĩa là cô ấy hát rất hay.',
-  },
-  {
-    id: "default-hsk3-03",
-    level: 3,
-    topic: "Từ vựng",
-    question: "“附近” có nghĩa là gì?",
-    pinyin: "fùjìn",
-    options: [
-      "Xa xôi",
-      "Gần đây",
-      "Ở giữa",
-      "Phía trên",
-    ],
-    correctIndex: 1,
-    hint: "Từ dùng để nói về một nơi ở gần.",
-    explanation:
-      '"附近" nghĩa là gần đây hoặc khu vực lân cận.',
-  },
-
-  // ==================== HSK 4 ====================
-
-  {
-    id: "default-hsk4-01",
-    level: 4,
-    topic: "Ngữ pháp",
-    question:
-      "虽然今天下雨，___他还是去上班了。",
-    pinyin:
-      "Suīrán jīntiān xiàyǔ, ___ tā háishì qù shàngbān le.",
-    options: ["所以", "但是", "因为", "如果"],
-    correctIndex: 1,
-    hint: "Cấu trúc: mặc dù... nhưng...",
-    explanation:
-      'Cấu trúc đúng là "虽然……但是……", nghĩa là mặc dù... nhưng...',
-  },
-  {
-    id: "default-hsk4-02",
-    level: 4,
-    topic: "Từ vựng",
-    question: "“经验” có nghĩa là gì?",
-    pinyin: "jīngyàn",
-    options: [
-      "Kinh nghiệm",
-      "Kế hoạch",
-      "Kết quả",
-      "Thói quen",
-    ],
-    correctIndex: 0,
-    hint:
-      "Kiến thức có được qua quá trình thực hành.",
-    explanation:
-      '"经验" nghĩa là kinh nghiệm tích lũy từ học tập, công việc hoặc cuộc sống.',
-  },
-  {
-    id: "default-hsk4-03",
-    level: 4,
-    topic: "Đọc hiểu",
-    question:
-      "他每天坚持运动，所以身体越来越好。Vì sao sức khỏe của anh ấy tốt hơn?",
-    pinyin:
-      "Tā měitiān jiānchí yùndòng, suǒyǐ shēntǐ yuèláiyuè hǎo.",
-    options: [
-      "Vì ngủ nhiều",
-      "Vì ăn ít",
-      "Vì kiên trì vận động",
-      "Vì không đi làm",
-    ],
-    correctIndex: 2,
-    hint: 'Chú ý cụm từ "坚持运动".',
-    explanation:
-      '"坚持运动" nghĩa là kiên trì tập thể dục.',
-  },
-
-  // ==================== HSK 5 ====================
-
-  {
-    id: "default-hsk5-01",
-    level: 5,
-    topic: "Ngữ pháp",
-    question: "这件事情必须认真___。",
-    pinyin:
-      "Zhè jiàn shìqing bìxū rènzhēn ___.",
-    options: ["处理", "举行", "发生", "提供"],
-    correctIndex: 0,
-    hint: "Động từ mang nghĩa xử lý vấn đề.",
-    explanation:
-      '"处理事情" nghĩa là xử lý sự việc hoặc giải quyết vấn đề.',
-  },
-  {
-    id: "default-hsk5-02",
-    level: 5,
-    topic: "Từ vựng",
-    question:
-      "“逐渐” gần nghĩa nhất với từ nào?",
-    pinyin: "zhújiàn",
-    options: ["突然", "慢慢", "立刻", "永远"],
-    correctIndex: 1,
-    hint: "Một sự thay đổi xảy ra từ từ.",
-    explanation:
-      '"逐渐" nghĩa là dần dần, gần nghĩa với "慢慢".',
-  },
-  {
-    id: "default-hsk5-03",
-    level: 5,
-    topic: "Đọc hiểu",
-    question:
-      "只有不断学习，才能适应社会的发展。Ý chính của câu là gì?",
-    pinyin:
-      "Zhǐyǒu bùduàn xuéxí, cáinéng shìyìng shèhuì de fāzhǎn.",
-    options: [
-      "Xã hội phát triển quá chậm",
-      "Cần học liên tục để thích nghi",
-      "Không cần học sau khi đi làm",
-      "Học không ảnh hưởng công việc",
-    ],
-    correctIndex: 1,
-    hint: 'Chú ý cấu trúc "只有……才……".',
-    explanation:
-      "Câu nhấn mạnh cần học tập liên tục để thích nghi với sự phát triển của xã hội.",
-  },
-
-  // ==================== HSK 6 ====================
-
-  {
-    id: "default-hsk6-01",
-    level: 6,
-    topic: "Từ vựng",
-    question: "“不可避免” có nghĩa là gì?",
-    pinyin: "bùkě bìmiǎn",
-    options: [
-      "Không đáng quan tâm",
-      "Không thể tránh khỏi",
-      "Không được phép",
-      "Không có kết quả",
-    ],
-    correctIndex: 1,
-    hint: "Một sự việc nhất định sẽ xảy ra.",
-    explanation:
-      '"不可避免" nghĩa là không thể tránh khỏi.',
-  },
-  {
-    id: "default-hsk6-02",
-    level: 6,
-    topic: "Ngữ pháp",
-    question:
-      "与其抱怨困难，___积极寻找解决办法。",
-    pinyin:
-      "Yǔqí bàoyuàn kùnnan, ___ jījí xúnzhǎo jiějué bànfǎ.",
-    options: ["不如", "不但", "尽管", "除非"],
-    correctIndex: 0,
-    hint: "Cấu trúc: thay vì... chi bằng...",
-    explanation:
-      'Cấu trúc "与其……不如……" nghĩa là thay vì... chi bằng...',
-  },
-  {
-    id: "default-hsk6-03",
-    level: 6,
-    topic: "Đọc hiểu",
-    question:
-      "科技的发展既带来了便利，也引发了新的社会问题。Câu này thể hiện điều gì?",
-    pinyin:
-      "Kējì de fāzhǎn jì dàilái le biànlì, yě yǐnfā le xīn de shèhuì wèntí.",
-    options: [
-      "Công nghệ chỉ có lợi",
-      "Công nghệ chỉ gây tác hại",
-      "Công nghệ vừa có lợi vừa tạo ra vấn đề",
-      "Công nghệ không ảnh hưởng xã hội",
-    ],
-    correctIndex: 2,
-    hint: 'Chú ý cấu trúc "既……也……".',
-    explanation:
-      "Câu thể hiện công nghệ vừa mang lại tiện lợi, vừa tạo ra những vấn đề xã hội mới.",
-  },
-];
-
-function getQuestionsFromAdmin(): BattleQuestion[] {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  try {
-    const savedQuestions =
-      window.localStorage.getItem(
-        QUESTION_STORAGE_KEY,
-      );
-
-    if (!savedQuestions) {
-      return [];
-    }
-
-    const parsedQuestions: unknown =
-      JSON.parse(savedQuestions);
-
-    if (!Array.isArray(parsedQuestions)) {
-      return [];
-    }
-
-    return parsedQuestions as BattleQuestion[];
-  } catch (error) {
-    console.error(
-      "Không thể tải câu hỏi admin:",
-      error,
-    );
-
-    return [];
-  }
+  persistedMatchId?: string;
 }
 
-function createBattleQuestions(
-  level: HSKLevel,
-): BattleQuestion[] {
-  const adminQuestions =
-    getQuestionsFromAdmin().filter(
-      (question) => question.level === level,
-    );
+interface SubmitResponse {
+  success: boolean;
 
-  const defaultQuestions =
-    DEFAULT_QUESTIONS.filter(
-      (question) => question.level === level,
-    );
+  completed?: boolean;
+  alreadySubmitted?: boolean;
 
-  const combinedQuestions = [
-    ...adminQuestions,
-    ...defaultQuestions.filter(
-      (defaultQuestion) =>
-        !adminQuestions.some(
-          (adminQuestion) =>
-            adminQuestion.id === defaultQuestion.id,
-        ),
-    ),
-  ];
+  message?: string;
 
-  return combinedQuestions.slice(0, 3);
+  data?: {
+    matchId?: string;
+    persistedMatchId?: string;
+
+    winner?: Winner;
+
+    redScore?: number;
+    blueScore?: number;
+
+    redTime?: number;
+    blueTime?: number;
+  };
 }
+
+interface StatusResponse {
+  success: boolean;
+
+  message?: string;
+
+  data?:
+    | MatchmakingMatch
+    | null;
+}
+
+const QUESTION_TIME =
+  30;
+
+const RESULT_POLLING_INTERVAL =
+  2000;
 
 export default function TeamBattleScreen({
   level,
   region,
+  match,
   initialInventory,
   onRestart,
 }: TeamBattleScreenProps) {
-  const [stage, setStage] =
-    useState<BattleStage>("matching");
+  const {
+    questions:
+      battleQuestions,
+  } =
+    useBattleQuestionsContext();
 
-  const [battleQuestions, setBattleQuestions] =
-    useState<BattleQuestion[]>([]);
+  const [
+    liveMatch,
+    setLiveMatch,
+  ] =
+    useState(match);
 
-  const [questionIndex, setQuestionIndex] =
+  const [
+    stage,
+    setStage,
+  ] =
+    useState<BattleStage>(
+      "battle",
+    );
+
+  const [
+    questionIndex,
+    setQuestionIndex,
+  ] =
     useState(0);
 
-  const [selectedIndex, setSelectedIndex] =
-    useState<number | null>(null);
+  const [
+    selectedIndex,
+    setSelectedIndex,
+  ] =
+    useState<
+      number | null
+    >(null);
 
-  const [answered, setAnswered] =
+  const [
+    answered,
+    setAnswered,
+  ] =
     useState(false);
 
-  const [timedOut, setTimedOut] =
+  const [
+    timedOut,
+    setTimedOut,
+  ] =
     useState(false);
 
-  const [redScore, setRedScore] =
+  const [
+    correctAnswers,
+    setCorrectAnswers,
+  ] =
     useState(0);
 
-  const [blueScore, setBlueScore] =
+  const [
+    wrongAnswers,
+    setWrongAnswers,
+  ] =
     useState(0);
 
-  const [redTime, setRedTime] =
+  /*
+   * Tổng thời gian của TẤT CẢ câu.
+   *
+   * Không chỉ tính câu đúng.
+   */
+  const [
+    totalBattleTime,
+    setTotalBattleTime,
+  ] =
     useState(0);
 
-  const [blueTime, setBlueTime] =
+  /*
+   * Thời gian đã dùng riêng
+   * cho câu hiện tại.
+   *
+   * Thay Date.now() để tránh:
+   * react-hooks/purity.
+   */
+  const [
+    elapsedThisQuestion,
+    setElapsedThisQuestion,
+  ] =
     useState(0);
 
-  const [timeLeft, setTimeLeft] =
-    useState(QUESTION_TIME);
+  const [
+    timeLeft,
+    setTimeLeft,
+  ] =
+    useState(
+      QUESTION_TIME,
+    );
 
-  const [questionStartedAt, setQuestionStartedAt] =
-    useState(Date.now());
-
-  const [inventory, setInventory] =
+  const [
+    inventory,
+    setInventory,
+  ] =
     useState<Inventory>({
       ...initialInventory,
     });
 
-  const [hiddenOptions, setHiddenOptions] =
-    useState<number[]>([]);
+  const [
+    hiddenOptions,
+    setHiddenOptions,
+  ] =
+    useState<number[]>(
+      [],
+    );
 
-  const [showHint, setShowHint] =
+  const [
+    showHint,
+    setShowHint,
+  ] =
     useState(false);
 
-  const [showPinyin, setShowPinyin] =
+  const [
+    showPinyin,
+    setShowPinyin,
+  ] =
     useState(false);
 
-  const [retryOffered, setRetryOffered] =
+  const [
+    retryOffered,
+    setRetryOffered,
+  ] =
     useState(false);
 
-  const [retryUsed, setRetryUsed] =
+  const [
+    retryUsed,
+    setRetryUsed,
+  ] =
     useState(false);
+
+  const [
+    submitting,
+    setSubmitting,
+  ] =
+    useState(false);
+
+  const [
+    submitMessage,
+    setSubmitMessage,
+  ] =
+    useState("");
+
+  const [
+    submitError,
+    setSubmitError,
+  ] =
+    useState("");
+
+  const [
+    finalResult,
+    setFinalResult,
+  ] =
+    useState<
+      FinalResult | null
+    >(null);
 
   const currentQuestion =
-    battleQuestions[questionIndex];
-
-  const redTeammatePoints = useMemo(() => {
-    return RED_TEAMMATE_RESULTS[
+    battleQuestions[
       questionIndex
-    ]?.filter(Boolean).length ?? 0;
-  }, [questionIndex]);
+    ];
 
-  const blueRoundPoints = useMemo(() => {
-    return BLUE_TEAM_RESULTS[
-      questionIndex
-    ]?.filter(Boolean).length ?? 0;
-  }, [questionIndex]);
-
-  /*
-   * Nạp câu hỏi do admin thêm.
-   */
-  useEffect(() => {
-    setBattleQuestions(
-      createBattleQuestions(level),
-    );
-  }, [level]);
-
-  /*
-   * Màn hình ghép hai đội.
-   */
-  useEffect(() => {
-    if (stage !== "matching") return;
-
-    const timer = window.setTimeout(() => {
-      setQuestionStartedAt(Date.now());
-      setStage("battle");
-    }, 2500);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [stage]);
-
-  /*
-   * Đồng hồ đếm ngược.
-   */
-  useEffect(() => {
-    if (
-      stage !== "battle" ||
-      answered ||
-      retryOffered ||
-      !currentQuestion
-    ) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setTimeLeft((previous) =>
-        Math.max(0, previous - 1),
+  const redPlayers =
+    useMemo(() => {
+      return liveMatch.players.filter(
+        (player) =>
+          player.team ===
+          "red",
       );
-    }, 1000);
+    }, [
+      liveMatch.players,
+    ]);
+
+  const bluePlayers =
+    useMemo(() => {
+      return liveMatch.players.filter(
+        (player) =>
+          player.team ===
+          "blue",
+      );
+    }, [
+      liveMatch.players,
+    ]);
+
+  const currentUserTeam =
+    liveMatch.currentUserTeam;
+
+  /*
+   * Điểm tạm thời của user.
+   */
+  const displayedRedScore =
+    liveMatch.redScore +
+    (currentUserTeam ===
+    "red"
+      ? correctAnswers
+      : 0);
+
+  const displayedBlueScore =
+    liveMatch.blueScore +
+    (currentUserTeam ===
+    "blue"
+      ? correctAnswers
+      : 0);
+
+  /*
+   * ========================================
+   * FINISH ROUND
+   * ========================================
+   *
+   * Khai báo TRƯỚC các useEffect sử dụng nó.
+   *
+   * Đây là phần sửa lỗi:
+   * finishRound accessed before declared.
+   */
+  const finishRound =
+    useCallback(
+      (
+        finalAnswerIndex:
+          | number
+          | null,
+      ) => {
+        if (
+          !currentQuestion ||
+          answered
+        ) {
+          return;
+        }
+
+        const playerCorrect =
+          finalAnswerIndex ===
+          currentQuestion.correctIndex;
+
+        /*
+         * Nếu trả lời quá nhanh,
+         * vẫn tính tối thiểu 1 giây.
+         */
+        const elapsedSeconds =
+          Math.max(
+            1,
+            elapsedThisQuestion,
+          );
+
+        /*
+         * Luôn tính thời gian,
+         * bất kể đúng / sai / timeout.
+         */
+        setTotalBattleTime(
+          (
+            previous,
+          ) =>
+            previous +
+            elapsedSeconds,
+        );
+
+        if (
+          playerCorrect
+        ) {
+          setCorrectAnswers(
+            (
+              previous,
+            ) =>
+              previous +
+              1,
+          );
+        } else {
+          setWrongAnswers(
+            (
+              previous,
+            ) =>
+              previous +
+              1,
+          );
+
+          void saveWrongQuestion(
+            currentQuestion,
+            finalAnswerIndex,
+          );
+        }
+
+        setTimedOut(
+          finalAnswerIndex ===
+            null,
+        );
+
+        setRetryOffered(
+          false,
+        );
+
+        setAnswered(
+          true,
+        );
+      },
+      [
+        answered,
+        currentQuestion,
+        elapsedThisQuestion,
+      ],
+    );
+
+  /*
+   * ========================================
+   * QUESTION TIMER
+   * ========================================
+   */
+  useEffect(() => {
+    if (
+      stage !==
+        "battle" ||
+      answered ||
+      retryOffered ||
+      !currentQuestion
+    ) {
+      return;
+    }
+
+    const timer =
+      window.setInterval(
+        () => {
+          setTimeLeft(
+            (
+              previous,
+            ) =>
+              Math.max(
+                0,
+                previous -
+                  1,
+              ),
+          );
+
+          setElapsedThisQuestion(
+            (
+              previous,
+            ) =>
+              previous +
+              1,
+          );
+        },
+        1000,
+      );
 
     return () => {
-      window.clearInterval(timer);
+      window.clearInterval(
+        timer,
+      );
     };
   }, [
     stage,
@@ -533,119 +456,389 @@ export default function TeamBattleScreen({
   ]);
 
   /*
-   * Hết thời gian sẽ tự động chốt câu sai.
+   * ========================================
+   * TIMEOUT
+   * ========================================
+   *
+   * Không gọi finishRound trực tiếp
+   * trong body useEffect.
+   *
+   * Callback được schedule sang tick
+   * tiếp theo để thỏa rule React mới.
    */
   useEffect(() => {
     if (
-      stage !== "battle" ||
+      stage !==
+        "battle" ||
       answered ||
       retryOffered ||
-      timeLeft > 0 ||
+      timeLeft >
+        0 ||
       !currentQuestion
     ) {
       return;
     }
 
-    finishRound(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const timeout =
+      window.setTimeout(
+        () => {
+          finishRound(
+            null,
+          );
+        },
+        0,
+      );
+
+    return () => {
+      window.clearTimeout(
+        timeout,
+      );
+    };
   }, [
-    timeLeft,
     stage,
     answered,
     retryOffered,
+    timeLeft,
     currentQuestion,
+    finishRound,
   ]);
+
+  /*
+   * ========================================
+   * CHECK FINAL RESULT
+   * ========================================
+   */
+  const checkFinalResult =
+    useCallback(
+      async () => {
+        try {
+          const response =
+            await fetch(
+              `/api/matchmaking?matchId=${encodeURIComponent(
+                liveMatch.id,
+              )}`,
+              {
+                method:
+                  "GET",
+
+                credentials:
+                  "include",
+
+                cache:
+                  "no-store",
+
+                headers: {
+                  Accept:
+                    "application/json",
+                },
+              },
+            );
+
+          const result =
+            (await response
+              .json()
+              .catch(
+                () =>
+                  null,
+              )) as
+              | StatusResponse
+              | null;
+
+          if (
+            !response.ok ||
+            !result?.success
+          ) {
+            throw new Error(
+              result?.message ||
+                "Không thể cập nhật kết quả.",
+            );
+          }
+
+          if (
+            !result.data
+          ) {
+            return;
+          }
+
+          setLiveMatch(
+            result.data,
+          );
+
+          if (
+            result.data
+              .status ===
+              "completed" &&
+            result.data
+              .winner
+          ) {
+            setFinalResult({
+              winner:
+                result.data
+                  .winner,
+
+              redScore:
+                result.data
+                  .redScore,
+
+              blueScore:
+                result.data
+                  .blueScore,
+
+              redTime:
+                result.data
+                  .redTime,
+
+              blueTime:
+                result.data
+                  .blueTime,
+
+              persistedMatchId:
+                result.data
+                  .persistedMatchId ??
+                undefined,
+            });
+
+            setStage(
+              "result",
+            );
+          } else {
+            setSubmitMessage(
+              result.message ||
+                "Đang chờ người chơi khác hoàn thành.",
+            );
+          }
+        } catch (
+          error
+        ) {
+          console.warn(
+            "Không thể tải kết quả:",
+            error,
+          );
+
+          setSubmitError(
+            error instanceof
+            Error
+              ? error.message
+              : "Không thể cập nhật kết quả.",
+          );
+        }
+      },
+      [
+        liveMatch.id,
+      ],
+    );
+
+  /*
+   * ========================================
+   * RESULT POLLING
+   * ========================================
+   *
+   * Không gọi checkFinalResult()
+   * đồng bộ trực tiếp trong effect.
+   */
+  useEffect(() => {
+    if (
+      stage !==
+      "waiting-result"
+    ) {
+      return;
+    }
+
+    const firstCheck =
+      window.setTimeout(
+        () => {
+          void checkFinalResult();
+        },
+        0,
+      );
+
+    const timer =
+      window.setInterval(
+        () => {
+          void checkFinalResult();
+        },
+        RESULT_POLLING_INTERVAL,
+      );
+
+    return () => {
+      window.clearTimeout(
+        firstCheck,
+      );
+
+      window.clearInterval(
+        timer,
+      );
+    };
+  }, [
+    checkFinalResult,
+    stage,
+  ]);
+
+  /*
+   * ========================================
+   * ITEMS
+   * ========================================
+   */
 
   function useFiftyFifty() {
     if (
       !currentQuestion ||
       answered ||
-      selectedIndex !== null ||
-      hiddenOptions.length > 0 ||
-      inventory["fifty-fifty"] <= 0
+      retryOffered ||
+      selectedIndex !==
+        null ||
+      hiddenOptions.length >
+        0 ||
+      inventory[
+        "fifty-fifty"
+      ] <= 0
     ) {
       return;
     }
 
     const wrongOptions =
       currentQuestion.options
-        .map((_, index) => index)
-        .filter(
-          (index) =>
-            index !== currentQuestion.correctIndex,
+        .map(
+          (
+            _,
+            index,
+          ) =>
+            index,
         )
-        .slice(0, 2);
+        .filter(
+          (
+            index,
+          ) =>
+            index !==
+            currentQuestion
+              .correctIndex,
+        )
+        .slice(
+          0,
+          2,
+        );
 
-    setHiddenOptions(wrongOptions);
+    setHiddenOptions(
+      wrongOptions,
+    );
 
-    setInventory((previous) => ({
-      ...previous,
-      "fifty-fifty":
-        previous["fifty-fifty"] - 1,
-    }));
+    setInventory(
+      (
+        previous,
+      ) => ({
+        ...previous,
+
+        "fifty-fifty":
+          previous[
+            "fifty-fifty"
+          ] - 1,
+      }),
+    );
   }
 
   function useHint() {
     if (
       !currentQuestion ||
       answered ||
+      retryOffered ||
       showHint ||
-      inventory.hint <= 0
+      inventory.hint <=
+        0
     ) {
       return;
     }
 
-    setShowHint(true);
+    setShowHint(
+      true,
+    );
 
-    setInventory((previous) => ({
-      ...previous,
-      hint: previous.hint - 1,
-    }));
+    setInventory(
+      (
+        previous,
+      ) => ({
+        ...previous,
+
+        hint:
+          previous.hint -
+          1,
+      }),
+    );
   }
 
   function usePinyin() {
     if (
       !currentQuestion ||
       answered ||
+      retryOffered ||
       showPinyin ||
       !currentQuestion.pinyin ||
-      inventory.pinyin <= 0
+      inventory.pinyin <=
+        0
     ) {
       return;
     }
 
-    setShowPinyin(true);
+    setShowPinyin(
+      true,
+    );
 
-    setInventory((previous) => ({
-      ...previous,
-      pinyin: previous.pinyin - 1,
-    }));
+    setInventory(
+      (
+        previous,
+      ) => ({
+        ...previous,
+
+        pinyin:
+          previous.pinyin -
+          1,
+      }),
+    );
   }
 
   function useExtraTime() {
     if (
+      !currentQuestion ||
       answered ||
       retryOffered ||
-      inventory["extra-time"] <= 0
+      inventory[
+        "extra-time"
+      ] <= 0
     ) {
       return;
     }
 
     setTimeLeft(
-      (previous) => previous + 10,
+      (
+        previous,
+      ) =>
+        previous +
+        10,
     );
 
-    setInventory((previous) => ({
-      ...previous,
-      "extra-time":
-        previous["extra-time"] - 1,
-    }));
+    setInventory(
+      (
+        previous,
+      ) => ({
+        ...previous,
+
+        "extra-time":
+          previous[
+            "extra-time"
+          ] - 1,
+      }),
+    );
   }
 
+  /*
+   * ========================================
+   * SUBMIT ANSWER
+   * ========================================
+   */
   function submitAnswer() {
     if (
       !currentQuestion ||
-      selectedIndex === null ||
+      selectedIndex ===
+        null ||
       answered ||
       retryOffered
     ) {
@@ -659,216 +852,436 @@ export default function TeamBattleScreen({
     if (
       !isCorrect &&
       !retryUsed &&
-      inventory.retry > 0
+      inventory.retry >
+        0
     ) {
-      setRetryOffered(true);
+      setRetryOffered(
+        true,
+      );
+
       return;
     }
 
-    finishRound(selectedIndex);
+    finishRound(
+      selectedIndex,
+    );
   }
 
+  /*
+   * ========================================
+   * RETRY ITEM
+   * ========================================
+   */
   function useRetry() {
     if (
       !currentQuestion ||
-      selectedIndex === null ||
+      selectedIndex ===
+        null ||
       !retryOffered ||
       retryUsed ||
-      inventory.retry <= 0
+      inventory.retry <=
+        0
     ) {
       return;
     }
 
-    saveWrongQuestion(
+    /*
+     * Lần trả lời sai đầu tiên vẫn
+     * lưu vào error logs.
+     */
+    void saveWrongQuestion(
       currentQuestion,
       selectedIndex,
     );
 
-    setInventory((previous) => ({
-      ...previous,
-      retry: previous.retry - 1,
-    }));
+    setInventory(
+      (
+        previous,
+      ) => ({
+        ...previous,
 
-    setRetryUsed(true);
-    setRetryOffered(false);
-    setSelectedIndex(null);
-    setHiddenOptions([]);
-    setTimeLeft((previous) =>
-      Math.max(previous, 10),
+        retry:
+          previous.retry -
+          1,
+      }),
+    );
+
+    setRetryUsed(
+      true,
+    );
+
+    setRetryOffered(
+      false,
+    );
+
+    setSelectedIndex(
+      null,
+    );
+
+    setHiddenOptions(
+      [],
+    );
+
+    setTimeLeft(
+      (
+        previous,
+      ) =>
+        Math.max(
+          previous,
+          10,
+        ),
     );
   }
 
   function declineRetry() {
-    if (!retryOffered) return;
-
-    setRetryOffered(false);
-    finishRound(selectedIndex);
-  }
-
-  function finishRound(
-    finalAnswerIndex: number | null,
-  ) {
-    if (!currentQuestion || answered) {
+    if (
+      !retryOffered
+    ) {
       return;
     }
 
-    const playerCorrect =
-      finalAnswerIndex ===
-      currentQuestion.correctIndex;
-
-    const elapsedSeconds = Math.max(
-      1,
-      Math.round(
-        (Date.now() - questionStartedAt) / 1000,
-      ),
+    setRetryOffered(
+      false,
     );
 
-    const redRoundScore =
-      redTeammatePoints +
-      (playerCorrect ? 1 : 0);
-
-    const redTeammatesTime =
-      RED_TEAMMATE_TIMES[
-        questionIndex
-      ]?.reduce(
-        (total, value) => total + value,
-        0,
-      ) ?? 0;
-
-    const blueRoundTime =
-      BLUE_TEAM_TIMES[
-        questionIndex
-      ]?.reduce(
-        (total, value) => total + value,
-        0,
-      ) ?? 0;
-
-    setRedScore(
-      (previous) =>
-        previous + redRoundScore,
+    finishRound(
+      selectedIndex,
     );
-
-    setBlueScore(
-      (previous) =>
-        previous + blueRoundPoints,
-    );
-
-    setRedTime(
-      (previous) =>
-        previous +
-        redTeammatesTime +
-        (playerCorrect ? elapsedSeconds : 0),
-    );
-
-    setBlueTime(
-      (previous) =>
-        previous + blueRoundTime,
-    );
-
-    if (!playerCorrect) {
-      saveWrongQuestion(
-        currentQuestion,
-        finalAnswerIndex,
-      );
-    }
-
-    setTimedOut(finalAnswerIndex === null);
-    setRetryOffered(false);
-    setAnswered(true);
   }
 
+  /*
+   * ========================================
+   * SUBMIT BATTLE RESULT
+   * ========================================
+   *
+   * Room ID là UUID,
+   * không phải Mongo ObjectId.
+   *
+   * Vì vậy submit qua:
+   * POST /api/matchmaking
+   */
+  const submitBattleResult =
+    useCallback(
+      async () => {
+        if (
+          submitting
+        ) {
+          return;
+        }
+
+        setSubmitting(
+          true,
+        );
+
+        setSubmitError(
+          "",
+        );
+
+        setSubmitMessage(
+          "Đang lưu kết quả trận đấu...",
+        );
+
+        try {
+          const response =
+            await fetch(
+              "/api/matchmaking",
+              {
+                method:
+                  "POST",
+
+                credentials:
+                  "include",
+
+                cache:
+                  "no-store",
+
+                headers: {
+                  "Content-Type":
+                    "application/json",
+
+                  Accept:
+                    "application/json",
+                },
+
+                body:
+                  JSON.stringify({
+                    action:
+                      "submit-result",
+
+                    matchId:
+                      liveMatch.id,
+
+                    correctAnswers,
+
+                    wrongAnswers,
+
+                    totalTime:
+                      totalBattleTime,
+                  }),
+              },
+            );
+
+          const result =
+            (await response
+              .json()
+              .catch(
+                () =>
+                  null,
+              )) as
+              | SubmitResponse
+              | null;
+
+          if (
+            !response.ok ||
+            !result?.success
+          ) {
+            throw new Error(
+              result?.message ||
+                "Không thể lưu kết quả.",
+            );
+          }
+
+          setSubmitMessage(
+            result.message ||
+              "Đã lưu kết quả.",
+          );
+
+          if (
+            result.completed &&
+            result.data
+              ?.winner
+          ) {
+            setFinalResult({
+              winner:
+                result.data
+                  .winner,
+
+              redScore:
+                result.data
+                  .redScore ??
+                0,
+
+              blueScore:
+                result.data
+                  .blueScore ??
+                0,
+
+              redTime:
+                result.data
+                  .redTime ??
+                0,
+
+              blueTime:
+                result.data
+                  .blueTime ??
+                0,
+
+              persistedMatchId:
+                result.data
+                  .persistedMatchId ??
+                result.data
+                  .matchId,
+            });
+
+            setStage(
+              "result",
+            );
+          } else {
+            setStage(
+              "waiting-result",
+            );
+          }
+        } catch (
+          error
+        ) {
+          console.warn(
+            "Không thể nộp kết quả:",
+            error,
+          );
+
+          setSubmitError(
+            error instanceof
+            Error
+              ? error.message
+              : "Không thể lưu kết quả.",
+          );
+        } finally {
+          setSubmitting(
+            false,
+          );
+        }
+      },
+      [
+        correctAnswers,
+        liveMatch.id,
+        submitting,
+        totalBattleTime,
+        wrongAnswers,
+      ],
+    );
+
+  /*
+   * ========================================
+   * NEXT QUESTION
+   * ========================================
+   */
   function nextQuestion() {
-    if (!answered) return;
+    if (
+      !answered
+    ) {
+      return;
+    }
 
     if (
       questionIndex >=
-      battleQuestions.length - 1
+      battleQuestions.length -
+        1
     ) {
-      setStage("result");
+      void submitBattleResult();
+
       return;
     }
 
     setQuestionIndex(
-      (previous) => previous + 1,
+      (
+        previous,
+      ) =>
+        previous +
+        1,
     );
 
-    setSelectedIndex(null);
-    setAnswered(false);
-    setTimedOut(false);
-    setHiddenOptions([]);
-    setShowHint(false);
-    setShowPinyin(false);
-    setRetryOffered(false);
-    setRetryUsed(false);
-    setTimeLeft(QUESTION_TIME);
-    setQuestionStartedAt(Date.now());
+    setSelectedIndex(
+      null,
+    );
+
+    setAnswered(
+      false,
+    );
+
+    setTimedOut(
+      false,
+    );
+
+    setHiddenOptions(
+      [],
+    );
+
+    setShowHint(
+      false,
+    );
+
+    setShowPinyin(
+      false,
+    );
+
+    setRetryOffered(
+      false,
+    );
+
+    setRetryUsed(
+      false,
+    );
+
+    setTimeLeft(
+      QUESTION_TIME,
+    );
+
+    /*
+     * Reset bộ đếm của câu mới.
+     *
+     * Không cần Date.now().
+     */
+    setElapsedThisQuestion(
+      0,
+    );
   }
 
-  function determineWinner(): Winner {
-    if (redScore > blueScore) {
-      return "red";
-    }
-
-    if (blueScore > redScore) {
-      return "blue";
-    }
-
-    if (redTime < blueTime) {
-      return "red";
-    }
-
-    if (blueTime < redTime) {
-      return "blue";
-    }
-
-    return "draw";
-  }
-
-  if (stage === "matching") {
+  /*
+   * ========================================
+   * EMPTY QUESTIONS
+   * ========================================
+   */
+  if (
+    battleQuestions.length ===
+    0
+  ) {
     return (
-      <MatchingScreen
+      <EmptyQuestionScreen
         level={level}
         region={region}
+        onRestart={
+          onRestart
+        }
       />
     );
   }
 
-  if (stage === "result") {
+  /*
+   * ========================================
+   * WAITING RESULT
+   * ========================================
+   */
+  if (
+    stage ===
+    "waiting-result"
+  ) {
+    return (
+      <WaitingResultScreen
+        match={
+          liveMatch
+        }
+        message={
+          submitMessage
+        }
+        error={
+          submitError
+        }
+        onRefresh={() =>
+          void checkFinalResult()
+        }
+      />
+    );
+  }
+
+  /*
+   * ========================================
+   * FINAL RESULT
+   * ========================================
+   */
+  if (
+    stage ===
+      "result" &&
+    finalResult
+  ) {
     return (
       <ResultScreen
-        winner={determineWinner()}
-        region={region}
-        redScore={redScore}
-        blueScore={blueScore}
-        redTime={redTime}
-        blueTime={blueTime}
-        onRestart={onRestart}
+        result={
+          finalResult
+        }
+        region={
+          region
+        }
+        match={
+          liveMatch
+        }
+        onRestart={
+          onRestart
+        }
       />
     );
   }
 
-  if (!currentQuestion) {
+  if (
+    !currentQuestion
+  ) {
     return (
-      <section className="rounded-3xl border border-red-300/20 bg-[#0b2235] p-8 text-center">
-        <div className="text-6xl">📭</div>
-
-        <h2 className="mt-4 text-2xl font-black">
-          Chưa có đủ câu hỏi
-        </h2>
-
-        <p className="text-slate-400">
-          Hãy thêm câu hỏi HSK {level} tại trang
-          quản trị.
-        </p>
-
-        <button
-          type="button"
-          onClick={onRestart}
-          className="mt-4 rounded-xl bg-emerald-300 px-6 py-3 font-black text-[#062d32]"
-        >
-          Quay lại
-        </button>
-      </section>
+      <EmptyQuestionScreen
+        level={level}
+        region={region}
+        onRestart={
+          onRestart
+        }
+      />
     );
   }
 
@@ -876,123 +1289,236 @@ export default function TeamBattleScreen({
     selectedIndex ===
     currentQuestion.correctIndex;
 
-  const timePercentage = Math.min(
-    100,
-    (timeLeft / QUESTION_TIME) * 100,
-  );
+  const timePercentage =
+    Math.min(
+      100,
 
+      (
+        timeLeft /
+        QUESTION_TIME
+      ) *
+        100,
+    );
+
+  /*
+   * ========================================
+   * BATTLE UI
+   * ========================================
+   */
   return (
-    <section className="overflow-hidden rounded-[28px] border border-emerald-300/20 bg-gradient-to-br from-[#102a40] via-[#0b2237] to-[#071827] shadow-[0_30px_80px_rgba(0,8,20,0.45)]">
-      {/* Điểm hai đội */}
-      <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 bg-[#051c2c]/90 p-4 md:p-6">
+    <section className="overflow-hidden rounded-2xl border border-emerald-300/20 bg-gradient-to-br from-[#102a40] via-[#0b2237] to-[#071827] shadow-[0_25px_60px_rgba(0,8,20,0.4)] sm:rounded-[28px]">
+
+      {/* SCORE */}
+
+      <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-[#051c2c]/90 p-3 sm:gap-4 sm:p-5">
+
         <TeamScore
           team="ĐỘI ĐỎ"
           icon="🦅"
-          score={redScore}
+          score={
+            displayedRedScore
+          }
+          playerCount={
+            redPlayers.length
+          }
           color="red"
         />
 
-        <div className="flex flex-col items-center">
-          <span className="text-[9px] font-black tracking-widest text-emerald-300 md:text-[11px]">
-            CÂU {questionIndex + 1}/
-            {battleQuestions.length}
+        <div className="min-w-[76px] text-center">
+
+          <span className="block text-[8px] font-black tracking-wider text-emerald-300 sm:text-[11px]">
+
+            CÂU{" "}
+            {
+              questionIndex +
+              1
+            }
+            /
+            {
+              battleQuestions.length
+            }
+
           </span>
 
-          <strong className="text-lg font-black text-amber-300 md:text-2xl">
-            HSK {currentQuestion.level}
+          <strong className="block text-base font-black text-amber-300 sm:text-2xl">
+
+            HSK{" "}
+            {
+              currentQuestion.level
+            }
+
           </strong>
 
-          <small className="text-slate-400">
-            {currentQuestion.topic}
+          <small className="hidden text-slate-400 sm:block">
+            {
+              liveMatch.mode
+            }
           </small>
+
         </div>
 
         <TeamScore
           team="ĐỘI XANH"
           icon="🐉"
-          score={blueScore}
+          score={
+            displayedBlueScore
+          }
+          playerCount={
+            bluePlayers.length
+          }
           color="blue"
           alignRight
         />
+
       </header>
 
-      {/* Đồng hồ */}
-      <div className="border-y border-white/5 bg-[#061a29]/80 px-5 py-3 md:px-8">
+      {/* PLAYERS */}
+
+      <div className="grid grid-cols-2 gap-px bg-white/5">
+
+        <CompactTeamList
+          players={
+            redPlayers
+          }
+          color="red"
+        />
+
+        <CompactTeamList
+          players={
+            bluePlayers
+          }
+          color="blue"
+          alignRight
+        />
+
+      </div>
+
+      {/* TIMER */}
+
+      <div className="border-y border-white/5 bg-[#061a29]/80 px-4 py-3 sm:px-8">
+
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-400">
-            Hai đội đang trả lời cùng câu hỏi
+
+          <span className="text-[11px] font-bold text-slate-400 sm:text-xs">
+
+            Điểm cá nhân:{" "}
+            {
+              correctAnswers
+            }
+
           </span>
 
           <span
             className={`font-black ${
-              timeLeft <= 10
+              timeLeft <=
+              10
                 ? "animate-pulse text-red-400"
                 : "text-amber-300"
             }`}
           >
-            ⏱ {timeLeft} giây
+
+            ⏱{" "}
+            {
+              timeLeft
+            }{" "}
+            giây
+
           </span>
+
         </div>
 
         <div className="h-2 overflow-hidden rounded-full bg-white/10">
+
           <div
             className={`h-full rounded-full transition-all duration-1000 ${
-              timeLeft <= 10
+              timeLeft <=
+              10
                 ? "bg-red-400"
                 : "bg-gradient-to-r from-emerald-400 to-amber-300"
             }`}
             style={{
-              width: `${timePercentage}%`,
+              width:
+                `${timePercentage}%`,
             }}
           />
+
         </div>
+
       </div>
 
-      {/* Câu hỏi */}
-      <article className="p-5 md:p-9">
-        <div className="mb-5 flex flex-wrap items-center justify-center gap-2">
-          <span className="rounded-full bg-emerald-300/10 px-3 py-1 text-[10px] font-black text-emerald-300">
+      {/* QUESTION */}
+
+      <article className="p-4 sm:p-6 lg:p-9">
+
+        <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+
+          <span className="rounded-full bg-emerald-300/10 px-3 py-1 text-[9px] font-black text-emerald-300">
             CÂU HỎI CHUNG
           </span>
 
-          <span className="rounded-full bg-blue-300/10 px-3 py-1 text-[10px] font-black text-blue-300">
-            {currentQuestion.topic}
+          <span className="rounded-full bg-blue-300/10 px-3 py-1 text-[9px] font-black text-blue-300">
+            {
+              currentQuestion.topic
+            }
           </span>
+
         </div>
 
-        <h2 className="mx-auto mb-3 max-w-4xl text-center text-2xl font-black leading-relaxed text-white md:text-4xl">
-          {currentQuestion.question}
+        <h2 className="mx-auto max-w-4xl break-words text-center text-xl font-black leading-relaxed text-white sm:text-2xl lg:text-4xl">
+
+          {
+            currentQuestion.question
+          }
+
         </h2>
 
-        {showPinyin && currentQuestion.pinyin && (
-          <p className="mb-7 text-center text-base italic text-amber-200">
-            {currentQuestion.pinyin}
-          </p>
-        )}
+        <div className="mb-5 mt-3 min-h-6 text-center">
 
-        {!showPinyin && (
-          <p className="mb-7 text-center text-sm text-slate-500">
-            Sử dụng Kính phiên âm để hiển thị pinyin
-          </p>
-        )}
+          {showPinyin &&
+          currentQuestion.pinyin ? (
+            <p className="text-sm italic text-amber-200 sm:text-base">
+
+              {
+                currentQuestion.pinyin
+              }
+
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500 sm:text-sm">
+              Dùng Kính phiên âm để hiển thị Pinyin
+            </p>
+          )}
+
+        </div>
+
+        {/* OPTIONS */}
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+
           {currentQuestion.options.map(
-            (option, index) => {
+            (
+              option,
+              index,
+            ) => {
               const isHidden =
-                hiddenOptions.includes(index);
+                hiddenOptions.includes(
+                  index,
+                );
 
               const isSelected =
-                selectedIndex === index;
+                selectedIndex ===
+                index;
 
               const isCorrect =
                 index ===
                 currentQuestion.correctIndex;
 
               let className =
-                "flex min-h-[76px] items-center gap-3 rounded-2xl border p-4 text-left transition ";
+                "flex min-h-[68px] items-center gap-3 rounded-2xl border p-3 text-left transition sm:min-h-[76px] sm:p-4 ";
 
-              if (isHidden) {
+              if (
+                isHidden
+              ) {
                 className +=
                   "cursor-not-allowed border-white/5 bg-white/5 opacity-30";
               } else if (
@@ -1008,12 +1534,14 @@ export default function TeamBattleScreen({
               ) {
                 className +=
                   "border-red-400 bg-red-500/20 text-red-100";
-              } else if (isSelected) {
+              } else if (
+                isSelected
+              ) {
                 className +=
                   "border-amber-300 bg-amber-300/15 text-white";
               } else {
                 className +=
-                  "border-emerald-200/15 bg-[#123148] text-slate-100 hover:-translate-y-0.5 hover:border-emerald-300/50 hover:bg-[#173b54]";
+                  "border-emerald-200/15 bg-[#123148] text-slate-100 hover:border-emerald-300/50 hover:bg-[#173b54]";
               }
 
               return (
@@ -1026,497 +1554,730 @@ export default function TeamBattleScreen({
                     isHidden
                   }
                   onClick={() =>
-                    setSelectedIndex(index)
+                    setSelectedIndex(
+                      index,
+                    )
                   }
-                  className={className}
+                  className={
+                    className
+                  }
                 >
-                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-emerald-300/10 font-black text-emerald-300">
-                    {String.fromCharCode(65 + index)}
+
+                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-300/10 font-black text-emerald-300 sm:size-10">
+
+                    {String.fromCharCode(
+                      65 +
+                        index,
+                    )}
+
                   </span>
 
-                  <strong>
+                  <strong className="break-words text-sm sm:text-base">
+
                     {isHidden
                       ? "Đã loại bỏ"
                       : option}
+
                   </strong>
+
                 </button>
               );
             },
           )}
+
         </div>
+
+        {/* HINT */}
 
         {showHint && (
           <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4 text-amber-100">
-            <strong>💡 Gợi ý</strong>
 
-            <p className="mb-0 mt-1">
-              {currentQuestion.hint}
+            <strong>
+              💡 Gợi ý
+            </strong>
+
+            <p className="mt-1 text-sm leading-relaxed">
+
+              {
+                currentQuestion.hint
+              }
+
             </p>
+
           </div>
         )}
 
+        {/* RETRY */}
+
         {retryOffered && (
-          <div className="mt-5 rounded-2xl border border-orange-300/30 bg-orange-300/10 p-5">
+          <div className="mt-5 rounded-2xl border border-orange-300/30 bg-orange-300/10 p-4">
+
             <strong className="text-orange-200">
               Đáp án chưa chính xác
             </strong>
 
             <p className="mb-4 mt-2 text-sm text-slate-300">
-              Bạn đang có Thẻ hồi đáp. Bạn có muốn
-              trả lời lại một lần không?
+              Bạn có muốn dùng Thẻ hồi đáp để trả lời lại không?
             </p>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="grid gap-2 sm:grid-cols-2">
+
               <button
                 type="button"
-                onClick={useRetry}
-                className="rounded-xl bg-orange-300 px-5 py-3 font-black text-[#33220b]"
+                onClick={
+                  useRetry
+                }
+                className="min-h-12 rounded-xl bg-orange-300 px-4 font-black text-[#33220b]"
               >
-                🔄 Dùng thẻ trả lời lại
+                🔄 Dùng thẻ
               </button>
 
               <button
                 type="button"
-                onClick={declineRetry}
-                className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 font-bold text-slate-300"
+                onClick={
+                  declineRetry
+                }
+                className="min-h-12 rounded-xl border border-white/10 bg-white/5 px-4 font-bold text-slate-300"
               >
                 Không sử dụng
               </button>
+
             </div>
+
           </div>
         )}
 
+        {/* ANSWER RESULT */}
+
         {answered && (
           <div
-            className={`mt-5 rounded-2xl border p-5 ${
-              selectedIsCorrect && !timedOut
+            className={`mt-5 rounded-2xl border p-4 ${
+              selectedIsCorrect &&
+              !timedOut
                 ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
                 : "border-red-400/30 bg-red-500/10 text-red-100"
             }`}
           >
+
             <strong className="text-lg">
+
               {timedOut
                 ? "⏱ Đã hết thời gian!"
                 : selectedIsCorrect
                   ? "✓ Chính xác!"
                   : "✕ Chưa chính xác!"}
+
             </strong>
 
-            <p className="mb-0 mt-2 leading-relaxed">
-              {currentQuestion.explanation}
+            <p className="mt-2 text-sm leading-relaxed sm:text-base">
+
+              {
+                currentQuestion.explanation
+              }
+
             </p>
 
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-red-300/10 p-3">
-                <small className="block opacity-70">
-                  Điểm Đội Đỏ vòng này
-                </small>
-
-                <strong className="text-xl">
-                  {redTeammatePoints +
-                    (selectedIsCorrect ? 1 : 0)}
-                </strong>
-              </div>
-
-              <div className="rounded-xl bg-blue-300/10 p-3">
-                <small className="block opacity-70">
-                  Điểm Đội Xanh vòng này
-                </small>
-
-                <strong className="text-xl">
-                  {blueRoundPoints}
-                </strong>
-              </div>
-            </div>
           </div>
         )}
+
+        {submitError && (
+          <div className="mt-5 rounded-xl border border-red-300/30 bg-red-400/10 p-4 text-sm text-red-100">
+            {
+              submitError
+            }
+          </div>
+        )}
+
       </article>
 
-      {/* Vật phẩm và nút xác nhận */}
-      <div className="border-t border-white/5 bg-[#051b2a]/80 p-5 md:px-9">
-        <p className="mb-3 mt-0 text-[10px] font-black tracking-widest text-slate-500">
-          VẬT PHẨM HỖ TRỢ
-        </p>
+      {/* ITEMS */}
 
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            <ItemButton
-              icon="🧭"
-              label="50/50"
-              quantity={inventory["fifty-fifty"]}
-              disabled={
-                answered ||
-                retryOffered ||
-                selectedIndex !== null ||
-                hiddenOptions.length > 0
-              }
-              onClick={useFiftyFifty}
-            />
+      <footer className="border-t border-white/5 bg-[#061a29]/80 p-4 sm:p-6">
 
-            <ItemButton
-              icon="📜"
-              label="Gợi ý"
-              quantity={inventory.hint}
-              disabled={
-                answered ||
-                retryOffered ||
-                showHint
-              }
-              onClick={useHint}
-            />
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
 
-            <ItemButton
-              icon="🔎"
-              label="Pinyin"
-              quantity={inventory.pinyin}
-              disabled={
-                answered ||
-                retryOffered ||
-                showPinyin ||
-                !currentQuestion.pinyin
-              }
-              onClick={usePinyin}
-            />
+          <div>
 
-            <ItemButton
-              icon="⏳"
-              label="+10 giây"
-              quantity={inventory["extra-time"]}
-              disabled={
-                answered || retryOffered
-              }
-              onClick={useExtraTime}
-            />
+            <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">
+              Vật phẩm hỗ trợ
+            </span>
 
-            <ItemButton
-              icon="🔄"
-              label="Trả lời lại"
-              quantity={inventory.retry}
-              disabled={!retryOffered}
-              onClick={useRetry}
-            />
+            <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+
+              <ItemButton
+                icon="✂️"
+                name="50/50"
+                quantity={
+                  inventory[
+                    "fifty-fifty"
+                  ]
+                }
+                disabled={
+                  answered ||
+                  selectedIndex !==
+                    null ||
+                  hiddenOptions.length >
+                    0
+                }
+                onClick={
+                  useFiftyFifty
+                }
+              />
+
+              <ItemButton
+                icon="💡"
+                name="Gợi ý"
+                quantity={
+                  inventory.hint
+                }
+                disabled={
+                  answered ||
+                  showHint
+                }
+                onClick={
+                  useHint
+                }
+              />
+
+              <ItemButton
+                icon="🔎"
+                name="Pinyin"
+                quantity={
+                  inventory.pinyin
+                }
+                disabled={
+                  answered ||
+                  showPinyin ||
+                  !currentQuestion.pinyin
+                }
+                onClick={
+                  usePinyin
+                }
+              />
+
+              <ItemButton
+                icon="⏱️"
+                name="+10 giây"
+                quantity={
+                  inventory[
+                    "extra-time"
+                  ]
+                }
+                disabled={
+                  answered
+                }
+                onClick={
+                  useExtraTime
+                }
+              />
+
+              <ItemButton
+                icon="🔄"
+                name="Trả lời lại"
+                quantity={
+                  inventory.retry
+                }
+                disabled
+              />
+
+            </div>
+
           </div>
 
-          {!answered ? (
+          {answered ? (
             <button
               type="button"
               disabled={
-                selectedIndex === null ||
-                retryOffered
+                submitting
               }
-              onClick={submitAnswer}
-              className="min-h-[52px] rounded-2xl bg-gradient-to-r from-amber-300 to-orange-400 px-8 font-black text-[#172532] shadow-[0_13px_30px_rgba(251,191,36,0.2)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={
+                nextQuestion
+              }
+              className="min-h-12 w-full rounded-xl bg-emerald-300 px-7 font-black text-[#062d32] disabled:opacity-50 xl:w-auto"
             >
-              Xác nhận đáp án
+
+              {submitting
+                ? "Đang lưu kết quả..."
+                : questionIndex >=
+                    battleQuestions.length -
+                      1
+                  ? "Hoàn thành trận đấu"
+                  : "Câu tiếp theo →"}
+
             </button>
           ) : (
             <button
               type="button"
-              onClick={nextQuestion}
-              className="min-h-[52px] rounded-2xl bg-gradient-to-r from-emerald-300 to-emerald-400 px-8 font-black text-[#062d32] shadow-[0_13px_30px_rgba(52,211,153,0.2)] transition hover:-translate-y-0.5"
+              disabled={
+                selectedIndex ===
+                  null ||
+                retryOffered
+              }
+              onClick={
+                submitAnswer
+              }
+              className="min-h-12 w-full rounded-xl bg-gradient-to-r from-amber-300 to-orange-300 px-7 font-black text-[#382207] disabled:opacity-40 xl:w-auto"
             >
-              {questionIndex ===
-              battleQuestions.length - 1
-                ? "Xem kết quả"
-                : "Câu tiếp theo →"}
+              Xác nhận đáp án
             </button>
           )}
+
         </div>
-      </div>
+
+      </footer>
+
     </section>
   );
 }
 
-function MatchingScreen({
-  level,
-  region,
-}: {
-  level: HSKLevel;
-  region: Region;
-}) {
-  return (
-    <section className="min-h-[680px] overflow-hidden rounded-[28px] border border-emerald-300/20 bg-gradient-to-br from-[#102a40] via-[#0b2237] to-[#071827] p-5 shadow-[0_30px_80px_rgba(0,8,20,0.45)] md:p-8">
-      <div className="text-center">
-        <p className="m-0 text-[10px] font-black tracking-[0.18em] text-emerald-300">
-          GHÉP ĐỘI THÀNH CÔNG
-        </p>
-
-        <h2 className="mb-2 mt-3 text-3xl font-black text-white md:text-5xl">
-          Trận chiến HSK tại{" "}
-          <span className="text-amber-300">
-            {region.name}
-          </span>
-        </h2>
-
-        <p className="text-slate-400">
-          Hai đội cùng trả lời 3 câu hỏi HSK {level}
-        </p>
-      </div>
-
-      <div className="mx-auto mt-9 grid max-w-5xl grid-cols-1 items-center gap-5 lg:grid-cols-[1fr_auto_1fr]">
-        <TeamRoster
-          name="Đội Đỏ"
-          icon="🦅"
-          members={RED_TEAM}
-          color="red"
-        />
-
-        <div className="flex flex-col items-center">
-          <div className="grid size-20 animate-pulse place-items-center rounded-full border-2 border-amber-300/40 bg-amber-300/10 text-3xl font-black text-amber-300 shadow-[0_0_40px_rgba(251,191,36,0.16)]">
-            VS
-          </div>
-
-          <span className="mt-3 text-xs font-bold text-slate-500">
-            3 VS 3
-          </span>
-        </div>
-
-        <TeamRoster
-          name="Đội Xanh"
-          icon="🐉"
-          members={BLUE_TEAM}
-          color="blue"
-        />
-      </div>
-
-      <div className="mx-auto mt-8 max-w-md">
-        <div className="h-2 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-red-400 via-amber-300 to-blue-400" />
-        </div>
-
-        <p className="mt-3 text-center text-xs text-slate-500">
-          Đang đồng bộ câu hỏi cho sáu người chơi...
-        </p>
-      </div>
-    </section>
-  );
-}
-
-function TeamRoster({
-  name,
-  icon,
-  members,
-  color,
-}: {
-  name: string;
-  icon: string;
-  members: TeamMember[];
-  color: "red" | "blue";
-}) {
-  const teamClass =
-    color === "red"
-      ? "border-red-400/30 bg-red-400/10"
-      : "border-blue-400/30 bg-blue-400/10";
-
-  const avatarClass =
-    color === "red"
-      ? "border-red-300/30 bg-red-300/10"
-      : "border-blue-300/30 bg-blue-300/10";
-
-  return (
-    <article
-      className={`rounded-3xl border p-5 ${teamClass}`}
-    >
-      <div className="mb-5 flex items-center justify-between">
-        <div>
-          <span className="text-[9px] font-black tracking-widest text-slate-400">
-            ĐỘI HÌNH
-          </span>
-
-          <h3 className="m-0 text-2xl font-black text-white">
-            {name}
-          </h3>
-        </div>
-
-        <span className="text-4xl">{icon}</span>
-      </div>
-
-      <div className="space-y-3">
-        {members.map((member) => (
-          <div
-            key={member.id}
-            className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#071a2a]/60 p-3"
-          >
-            <div
-              className={`grid size-12 place-items-center rounded-2xl border text-2xl ${avatarClass}`}
-            >
-              {member.avatar}
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <strong className="block truncate text-white">
-                {member.name}
-              </strong>
-
-              <small className="text-slate-400">
-                {member.role}
-              </small>
-            </div>
-
-            <span className="size-2 animate-pulse rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.8)]" />
-          </div>
-        ))}
-      </div>
-    </article>
-  );
-}
+/*
+ * ==========================================
+ * TEAM SCORE
+ * ==========================================
+ */
 
 function TeamScore({
   team,
   icon,
   score,
+  playerCount,
   color,
   alignRight = false,
 }: {
   team: string;
   icon: string;
+
   score: number;
-  color: "red" | "blue";
+  playerCount: number;
+
+  color:
+    | "red"
+    | "blue";
+
   alignRight?: boolean;
 }) {
+  const scoreColor =
+    color ===
+    "red"
+      ? "text-red-300"
+      : "text-blue-300";
+
   return (
     <div
-      className={`flex flex-col ${
-        alignRight ? "items-end" : "items-start"
+      className={`flex items-center gap-2 ${
+        alignRight
+          ? "justify-end text-right"
+          : ""
       }`}
     >
-      <span
-        className={`text-[9px] font-black md:text-xs ${
-          color === "red"
-            ? "text-red-300"
-            : "text-blue-300"
-        }`}
-      >
-        {alignRight
-          ? `${team} ${icon}`
-          : `${icon} ${team}`}
-      </span>
 
-      <strong className="text-3xl font-black text-white">
-        {score}
-      </strong>
+      {!alignRight && (
+        <span className="hidden text-2xl sm:block">
+          {icon}
+        </span>
+      )}
+
+      <div>
+
+        <span className="block text-[8px] font-black tracking-wider text-slate-400 sm:text-xs">
+
+          {team} ·{" "}
+          {
+            playerCount
+          }
+
+        </span>
+
+        <strong
+          className={`text-2xl font-black sm:text-4xl ${scoreColor}`}
+        >
+          {score}
+        </strong>
+
+      </div>
+
+      {alignRight && (
+        <span className="hidden text-2xl sm:block">
+          {icon}
+        </span>
+      )}
+
     </div>
   );
 }
 
+/*
+ * ==========================================
+ * COMPACT TEAM LIST
+ * ==========================================
+ */
+
+function CompactTeamList({
+  players,
+  color,
+  alignRight = false,
+}: {
+  players:
+    MatchmakingPlayer[];
+
+  color:
+    | "red"
+    | "blue";
+
+  alignRight?: boolean;
+}) {
+  return (
+    <div
+      className={`flex min-w-0 flex-wrap gap-1 bg-[#081d2c] p-2 sm:p-3 ${
+        alignRight
+          ? "justify-end"
+          : ""
+      }`}
+    >
+
+      {players.map(
+        (
+          player,
+        ) => (
+          <span
+            key={`${player.user.id}-${player.team}`}
+            title={
+              player.user.name
+            }
+            className={`inline-flex max-w-[130px] items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-bold sm:text-xs ${
+              color ===
+              "red"
+                ? "border-red-300/20 bg-red-300/10 text-red-100"
+                : "border-blue-300/20 bg-blue-300/10 text-blue-100"
+            }`}
+          >
+
+            <span>
+
+              {player.user.avatar ||
+                (player.isBot
+                  ? "🤖"
+                  : "👤")}
+
+            </span>
+
+            <span className="truncate">
+              {
+                player.user.name
+              }
+            </span>
+
+          </span>
+        ),
+      )}
+
+    </div>
+  );
+}
+
+/*
+ * ==========================================
+ * ITEM BUTTON
+ * ==========================================
+ */
+
 function ItemButton({
   icon,
-  label,
+  name,
   quantity,
   disabled,
   onClick,
 }: {
   icon: string;
-  label: string;
-  quantity: number;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  const unavailable =
-    disabled || quantity <= 0;
 
+  name: string;
+
+  quantity: number;
+
+  disabled?: boolean;
+
+  onClick?: () => void;
+}) {
   return (
     <button
       type="button"
-      disabled={unavailable}
-      onClick={onClick}
-      className="grid min-w-[105px] grid-cols-[auto_1fr_auto] items-center gap-2 rounded-xl border border-emerald-300/15 bg-[#12344a] p-3 text-left text-white transition hover:-translate-y-0.5 hover:border-emerald-300/50 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:translate-y-0"
+      disabled={
+        disabled ||
+        quantity <=
+          0
+      }
+      onClick={
+        onClick
+      }
+      className="relative flex min-h-[62px] min-w-0 flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 px-2 py-2 transition hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-35 sm:min-w-[82px]"
     >
-      <span>{icon}</span>
 
-      <strong className="text-[11px]">
-        {label}
+      <span className="text-xl">
+        {icon}
+      </span>
+
+      <strong className="mt-1 truncate text-[9px] text-slate-200">
+        {name}
       </strong>
 
-      <small>×{quantity}</small>
+      <small className="absolute right-1 top-1 rounded-full bg-[#061a29] px-1.5 text-[9px] font-black text-amber-300">
+        ×{quantity}
+      </small>
+
     </button>
   );
 }
 
-function ResultScreen({
-  winner,
-  region,
-  redScore,
-  blueScore,
-  redTime,
-  blueTime,
-  onRestart,
+/*
+ * ==========================================
+ * WAITING RESULT
+ * ==========================================
+ */
+
+function WaitingResultScreen({
+  match,
+  message,
+  error,
+  onRefresh,
 }: {
-  winner: Winner;
-  region: Region;
-  redScore: number;
-  blueScore: number;
-  redTime: number;
-  blueTime: number;
-  onRestart: () => void;
+  match:
+    MatchmakingMatch;
+
+  message: string;
+
+  error: string;
+
+  onRefresh:
+    () => void;
 }) {
+  const submittedCount =
+    match.players.filter(
+      (
+        player,
+      ) =>
+        player.submitted,
+    ).length;
+
   return (
-    <section className="flex min-h-[680px] flex-col items-center justify-center overflow-hidden rounded-[28px] border border-emerald-300/20 bg-gradient-to-br from-[#102a40] to-[#071827] p-6 text-center shadow-[0_30px_80px_rgba(0,8,20,0.45)]">
-      <div className="animate-bounce text-8xl">
-        {winner === "red"
-          ? "🏆"
-          : winner === "blue"
-            ? "🛡️"
-            : "🤝"}
+    <section className="grid min-h-[620px] place-items-center rounded-3xl border border-emerald-300/20 bg-gradient-to-br from-[#102a40] to-[#071827] p-5 text-center">
+
+      <div className="w-full max-w-xl">
+
+        <div className="mx-auto grid size-24 animate-pulse place-items-center rounded-full bg-emerald-300/10 text-5xl">
+          ⏳
+        </div>
+
+        <span className="mt-6 block text-xs font-black uppercase tracking-[0.18em] text-emerald-300">
+          Đã lưu kết quả của bạn
+        </span>
+
+        <h2 className="mt-2 text-3xl font-black text-white sm:text-4xl">
+          Đang chờ người chơi khác
+        </h2>
+
+        <p className="mt-3 text-sm leading-relaxed text-slate-400">
+
+          {message ||
+            "Những người chơi khác vẫn đang trả lời câu hỏi."}
+
+        </p>
+
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+
+          <strong className="text-2xl text-amber-300">
+
+            {
+              submittedCount
+            }
+            /
+            {
+              match.players.length
+            }
+
+          </strong>
+
+          <span className="mt-1 block text-xs text-slate-500">
+            người đã hoàn thành
+          </span>
+
+        </div>
+
+        {error && (
+          <p className="mt-4 rounded-xl border border-red-300/20 bg-red-400/10 p-3 text-sm text-red-100">
+            {error}
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={
+            onRefresh
+          }
+          className="mt-5 min-h-11 rounded-xl border border-white/10 bg-white/5 px-5 font-bold text-slate-200"
+        >
+          Cập nhật kết quả
+        </button>
+
       </div>
 
-      <p className="mt-5 text-[10px] font-black tracking-[0.18em] text-emerald-300">
-        KẾT QUẢ TRẬN ĐẤU
-      </p>
+    </section>
+  );
+}
 
-      <h2 className="my-3 text-3xl font-black text-white md:text-5xl">
-        {winner === "red" &&
-          "Đội Đỏ chiến thắng!"}
+/*
+ * ==========================================
+ * RESULT
+ * ==========================================
+ */
 
-        {winner === "blue" &&
-          "Đội Xanh chiến thắng!"}
+function ResultScreen({
+  result,
+  region,
+  match,
+  onRestart,
+}: {
+  result:
+    FinalResult;
 
-        {winner === "draw" &&
-          "Hai đội hòa nhau!"}
+  region:
+    Region;
+
+  match:
+    MatchmakingMatch;
+
+  onRestart:
+    () => void;
+}) {
+  const currentTeam =
+    match.currentUserTeam;
+
+  const playerWon =
+    result.winner ===
+    currentTeam;
+
+  return (
+    <section className="flex min-h-[620px] flex-col items-center justify-center rounded-3xl border border-emerald-300/20 bg-gradient-to-br from-[#102a40] to-[#071827] p-5 text-center">
+
+      <div className="text-8xl">
+
+        {result.winner ===
+        "draw"
+          ? "🤝"
+          : playerWon
+            ? "🏆"
+            : "🛡️"}
+
+      </div>
+
+      <span className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-emerald-300">
+        Kết quả trận đấu
+      </span>
+
+      <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">
+
+        {result.winner ===
+        "draw"
+          ? "Hai đội hòa nhau!"
+          : playerWon
+            ? "Đội của bạn chiến thắng!"
+            : "Đội đối thủ chiến thắng!"}
+
       </h2>
 
-      <p className="m-0 text-slate-400">
-        Trận đấu HSK tại {region.name} đã kết thúc.
+      <p className="mt-3 text-slate-400">
+
+        {
+          match.mode
+        }{" "}
+        · HSK{" "}
+        {
+          match.level
+        }{" "}
+        ·{" "}
+        {
+          region.name
+        }
+
       </p>
 
-      <div className="my-8 grid w-full max-w-2xl grid-cols-1 items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
+      <div className="my-8 grid w-full max-w-2xl grid-cols-[1fr_auto_1fr] items-center gap-3">
+
         <ResultCard
           name="Đội Đỏ"
           icon="🦅"
-          score={redScore}
-          time={redTime}
-          winner={winner === "red"}
+          score={
+            result.redScore
+          }
+          time={
+            result.redTime
+          }
+          winner={
+            result.winner ===
+            "red"
+          }
           color="red"
         />
 
-        <span className="text-3xl font-black text-amber-300">
-          —
-        </span>
+        <strong className="text-2xl text-amber-300">
+          VS
+        </strong>
 
         <ResultCard
           name="Đội Xanh"
           icon="🐉"
-          score={blueScore}
-          time={blueTime}
-          winner={winner === "blue"}
+          score={
+            result.blueScore
+          }
+          time={
+            result.blueTime
+          }
+          winner={
+            result.winner ===
+            "blue"
+          }
           color="blue"
         />
+
       </div>
 
-      <p className="mb-6 rounded-xl border border-emerald-300/10 bg-emerald-300/5 px-5 py-3 text-sm text-slate-300">
-        Câu trả lời sai đã được lưu vào Error Log.
-      </p>
+      <div className="mb-6 rounded-xl border border-emerald-300/10 bg-emerald-300/5 px-5 py-3 text-sm text-slate-300">
+
+        <p>
+          Kết quả và số lần chơi đã được lưu vào tài khoản của bạn.
+        </p>
+
+        {result.persistedMatchId && (
+          <p className="mt-2 break-all text-xs text-slate-500">
+
+            Match ID:{" "}
+            {
+              result.persistedMatchId
+            }
+
+          </p>
+        )}
+
+      </div>
 
       <button
         type="button"
-        onClick={onRestart}
-        className="min-h-[50px] rounded-xl bg-gradient-to-r from-emerald-300 to-emerald-400 px-7 font-black text-[#062d32] transition hover:-translate-y-0.5"
+        onClick={
+          onRestart
+        }
+        className="min-h-12 rounded-xl bg-emerald-300 px-7 font-black text-[#062d32]"
       >
         Bắt đầu hành trình mới
       </button>
+
     </section>
   );
 }
+
+/*
+ * ==========================================
+ * RESULT CARD
+ * ==========================================
+ */
 
 function ResultCard({
   name,
@@ -1527,110 +2288,226 @@ function ResultCard({
   color,
 }: {
   name: string;
+
   icon: string;
+
   score: number;
+
   time: number;
+
   winner: boolean;
-  color: "red" | "blue";
+
+  color:
+    | "red"
+    | "blue";
 }) {
   return (
     <article
-      className={`flex flex-col rounded-3xl border p-6 ${
+      className={`rounded-2xl border p-4 sm:p-6 ${
         winner
-          ? "border-amber-300 bg-amber-300/10 shadow-[0_0_35px_rgba(251,191,36,0.15)]"
-          : color === "red"
+          ? "border-amber-300 bg-amber-300/10"
+          : color ===
+              "red"
             ? "border-red-300/20 bg-red-300/5"
             : "border-blue-300/20 bg-blue-300/5"
       }`}
     >
-      <span className="text-3xl">{icon}</span>
 
-      <strong className="mt-2 text-lg text-white">
+      <span className="text-3xl">
+        {icon}
+      </span>
+
+      <strong className="mt-2 block text-white">
         {name}
       </strong>
 
-      <b className="text-5xl font-black text-white">
+      <b className="block text-4xl text-white sm:text-5xl">
         {score}
       </b>
 
-      <small className="mt-2 text-slate-400">
-        Tổng thời gian đúng: {time} giây
+      <small className="text-slate-400">
+
+        {Math.max(
+          0,
+          Math.round(
+            time,
+          ),
+        )}{" "}
+        giây
+
       </small>
+
     </article>
   );
 }
 
-function saveWrongQuestion(
-  question: BattleQuestion,
-  selectedIndex: number | null,
+/*
+ * ==========================================
+ * EMPTY QUESTION
+ * ==========================================
+ */
+
+function EmptyQuestionScreen({
+  level,
+  region,
+  onRestart,
+}: {
+  level:
+    HSKLevel;
+
+  region:
+    Region;
+
+  onRestart:
+    () => void;
+}) {
+  return (
+    <section className="grid min-h-[500px] place-items-center rounded-3xl border border-amber-300/20 bg-[#0b2235] p-6 text-center">
+
+      <div>
+
+        <div className="text-6xl">
+          📭
+        </div>
+
+        <h2 className="mt-4 text-2xl font-black">
+          Chưa có đủ câu hỏi
+        </h2>
+
+        <p className="mt-2 text-slate-400">
+
+          Chưa có đủ câu hỏi HSK{" "}
+          {level} tại{" "}
+          {region.name}.
+
+        </p>
+
+        <button
+          type="button"
+          onClick={
+            onRestart
+          }
+          className="mt-5 rounded-xl bg-emerald-300 px-6 py-3 font-black text-[#062d32]"
+        >
+          Quay lại
+        </button>
+
+      </div>
+
+    </section>
+  );
+}
+
+/*
+ * ==========================================
+ * SAVE WRONG QUESTION
+ * ==========================================
+ */
+
+async function saveWrongQuestion(
+  question:
+    GameQuestion,
+
+  selectedIndex:
+    | number
+    | null,
 ) {
-  if (typeof window === "undefined") return;
-
-  const storageKey = "hsk-error-log";
-
   try {
-    const savedData =
-      window.localStorage.getItem(storageKey);
+    /*
+     * Đây là chức năng phụ.
+     *
+     * API lỗi không được làm
+     * gián đoạn trận đấu.
+     */
+    const response =
+      await fetch(
+        "/api/error-logs",
+        {
+          method:
+            "POST",
 
-    const parsedData: unknown = savedData
-      ? JSON.parse(savedData)
-      : [];
+          credentials:
+            "include",
 
-    const oldData: ErrorLogItem[] =
-      Array.isArray(parsedData)
-        ? parsedData
-        : [];
+          cache:
+            "no-store",
 
-    const existingIndex = oldData.findIndex(
-      (item) =>
-        item.questionId === question.id,
-    );
+          headers: {
+            "Content-Type":
+              "application/json",
 
-    const oldWrongCount =
-      existingIndex >= 0
-        ? oldData[existingIndex].wrongCount
-        : 0;
+            Accept:
+              "application/json",
+          },
 
-    const selectedAnswer =
-      selectedIndex === null
-        ? "Không trả lời – hết thời gian"
-        : question.options[selectedIndex];
+          body:
+            JSON.stringify({
+              questionId:
+                question.id,
 
-    const errorItem: ErrorLogItem = {
-      questionId: question.id,
-      level: question.level,
-      topic: question.topic,
-      question: question.question,
-      pinyin: question.pinyin,
-      selectedAnswer,
-      correctAnswer:
-        question.options[
-          question.correctIndex
-        ],
-      explanation: question.explanation,
-      wrongCount: oldWrongCount + 1,
-      reviewed: false,
-      updatedAt: new Date().toISOString(),
-    };
+              selectedIndex,
 
-    if (existingIndex >= 0) {
-      oldData[existingIndex] = errorItem;
-    } else {
-      oldData.push(errorItem);
+              level:
+                question.level,
+
+              topic:
+                question.topic,
+
+              question:
+                question.question,
+
+              correctIndex:
+                question.correctIndex,
+            }),
+        },
+      );
+
+    const result =
+      (await response
+        .json()
+        .catch(
+          () =>
+            null,
+        )) as
+        | {
+            success?:
+              boolean;
+
+            message?:
+              string;
+          }
+        | null;
+
+    if (
+      response.status ===
+        401 ||
+      response.status ===
+        403
+    ) {
+      console.warn(
+        "Bỏ qua lưu câu sai vì phiên đăng nhập không hợp lệ:",
+        result?.message ??
+          `HTTP ${response.status}`,
+      );
+
+      return;
     }
 
-    oldData.sort(
-      (first, second) =>
-        second.wrongCount - first.wrongCount,
-    );
-
-    window.localStorage.setItem(
-      storageKey,
-      JSON.stringify(oldData),
-    );
-  } catch (error) {
-    console.error(
-      "Không thể lưu câu sai:",
+    if (
+      !response.ok ||
+      !result?.success
+    ) {
+      console.warn(
+        "Không lưu được câu sai:",
+        result?.message ??
+          `HTTP ${response.status}`,
+      );
+    }
+  } catch (
+    error
+  ) {
+    console.warn(
+      "Bỏ qua lỗi lưu câu sai:",
       error,
     );
   }
