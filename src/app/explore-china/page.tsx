@@ -715,20 +715,20 @@ function ExploreChinaScreen({
                             </div>
                           </div>
 
-                          <div className="relative pb-3">
+                          <div className="relative mx-auto w-full max-w-[350px] pb-3">
                             <span
                               aria-hidden="true"
-                              className="absolute -bottom-0.5 left-9 z-0 size-6 rotate-[-24deg] rounded-bl-md border-b border-l border-cyan-100/80 bg-[#55b2c1]"
+                              className="absolute -bottom-0.5 left-9 z-0 size-6 rotate-[-24deg] rounded-bl-md border-b border-l border-amber-100/80 bg-[#f1d7ad]"
                             />
 
-                            <article className="relative z-10 flex max-h-[min(58dvh,500px)] min-h-[250px] w-full flex-col overflow-hidden rounded-[28px] border border-cyan-100/80 bg-gradient-to-br from-[#83d5df] via-[#63bac8] to-[#4ba2b5] text-[#103746] shadow-[0_18px_35px_rgba(0,0,0,.28)] sm:rounded-[32px]">
+                            <article className="relative z-10 w-full rounded-[26px] border border-amber-100/80 bg-gradient-to-br from-[#fff1d6] via-[#f4dfbd] to-[#e9c99e] text-[#3b2b1c] shadow-[0_14px_30px_rgba(0,0,0,.24)] sm:rounded-[30px]">
                               <div
                                 aria-hidden="true"
-                                className="pointer-events-none absolute inset-2 rounded-[22px] border border-white/20 sm:rounded-[26px]"
+                                className="pointer-events-none absolute inset-2 rounded-[20px] border border-white/45 sm:rounded-[24px]"
                               />
 
-                              <div className="relative z-10 flex shrink-0 items-center gap-2.5 px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
-                                <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/60 bg-white/35 p-1 shadow-sm sm:size-12">
+                              <div className="relative z-10 flex items-center gap-2.5 px-3.5 pb-2 pt-3.5 sm:px-4 sm:pt-4">
+                                <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-amber-900/10 bg-white/65 p-1 shadow-sm sm:size-11">
                                   <StickerImage
                                     src={activeSticker.icon}
                                     alt={`Ảnh sticker ${activeSticker.title}`}
@@ -743,7 +743,7 @@ function ExploreChinaScreen({
                                 </h2>
                               </div>
 
-                              <div className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5 text-[13px] font-medium leading-[1.65] [overflow-wrap:anywhere] sm:px-5 sm:text-sm sm:leading-6">
+                              <div className="relative z-10 px-3.5 pb-4 text-[13px] font-medium leading-[1.65] [overflow-wrap:anywhere] sm:px-4 sm:pb-5 sm:text-sm sm:leading-6">
                                 <p className="whitespace-pre-wrap break-words">
                                   {activeSticker.content ||
                                     "Chưa có nội dung cho sticker này."}
