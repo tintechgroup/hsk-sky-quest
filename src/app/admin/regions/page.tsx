@@ -144,8 +144,7 @@ function createSlug(
     )
     .replace(
       /^-+|-+$/g,
-      "",
-    );
+      "");
 }
 
 function getString(
@@ -1370,7 +1369,7 @@ export default function AdminRegionsPage() {
                   />
 
                   <span className="mt-2 block text-[11px] text-slate-500">
-                    Ví dụ: [{"{"}"question":"Thủ đô của tỉnh?","options":["A","B","C","D"],"correctIndex":0,"explanation":"Giải thích đáp án"{"}"}]
+                    Ví dụ: [{"{"}&quot;question&quot;:&quot;Thủ đô của tỉnh?&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;,&quot;C&quot;,&quot;D&quot;],&quot;correctIndex&quot;:0,&quot;explanation&quot;:&quot;Giải thích đáp án&quot;{"}"}]
                   </span>
                 </label>
 

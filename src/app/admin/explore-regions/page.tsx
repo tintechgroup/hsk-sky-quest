@@ -61,10 +61,6 @@ interface ApiResponse {
   data?: unknown;
 }
 
-interface PendingSticker {
-  sticker: ExploreSticker;
-}
-
 const DRAFT_KEY = "explore-region-admin-draft-v1";
 const PENDING_STICKER_KEY = "explore-region-pending-sticker-v1";
 
@@ -437,16 +433,26 @@ function AdminExploreRegionsContent() {
   }, []);
 
   useEffect(() => {
-    const draft = readDraft();
+    let cancelled = false;
 
-    if (draft) {
-      setForm(draft.form);
-      setEditingId(draft.editingId);
-      setSelectedRegionId(draft.editingId || "");
-    }
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
 
-    setDraftReady(true);
-    void loadRegions();
+      const draft = readDraft();
+
+      if (draft) {
+        setForm(draft.form);
+        setEditingId(draft.editingId);
+        setSelectedRegionId(draft.editingId || "");
+      }
+
+      setDraftReady(true);
+      void loadRegions();
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [loadRegions]);
 
   useEffect(() => {
@@ -457,41 +463,51 @@ function AdminExploreRegionsContent() {
   useEffect(() => {
     if (!draftReady || stickerSaved !== "1") return;
 
-    try {
-      const raw = sessionStorage.getItem(PENDING_STICKER_KEY);
+    let cancelled = false;
 
-      if (raw) {
-        const pending = JSON.parse(raw) as { sticker?: ExploreSticker };
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
 
-        if (pending.sticker) {
-          setForm((current) => {
-            const exists = current.stickers.some(
-              (sticker) => sticker.id === pending.sticker?.id,
+      try {
+        const raw = sessionStorage.getItem(PENDING_STICKER_KEY);
+
+        if (raw) {
+          const pending = JSON.parse(raw) as { sticker?: ExploreSticker };
+
+          if (pending.sticker) {
+            setForm((current) => {
+              const exists = current.stickers.some(
+                (sticker) => sticker.id === pending.sticker?.id,
+              );
+
+              return {
+                ...current,
+                stickers: exists
+                  ? current.stickers.map((sticker) =>
+                      sticker.id === pending.sticker?.id
+                        ? pending.sticker!
+                        : sticker,
+                    )
+                  : [...current.stickers, pending.sticker!],
+              };
+            });
+
+            setMessage(
+              "Sticker đã được thêm vào bản nháp. Bấm lưu để cập nhật tỉnh.",
             );
-
-            return {
-              ...current,
-              stickers: exists
-                ? current.stickers.map((sticker) =>
-                    sticker.id === pending.sticker?.id
-                      ? pending.sticker!
-                      : sticker,
-                  )
-                : [...current.stickers, pending.sticker!],
-            };
-          });
-
-          setMessage(
-            "Sticker đã được thêm vào bản nháp. Bấm lưu để cập nhật tỉnh.",
-          );
+          }
         }
+      } catch {
+        setError("Không đọc được sticker vừa tạo. Hãy thử lại.");
+      } finally {
+        sessionStorage.removeItem(PENDING_STICKER_KEY);
+        router.replace("/admin/explore-regions?view=stickers");
       }
-    } catch {
-      setError("Không đọc được sticker vừa tạo. Hãy thử lại.");
-    } finally {
-      sessionStorage.removeItem(PENDING_STICKER_KEY);
-      router.replace("/admin/explore-regions?view=stickers");
-    }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [draftReady, router, stickerSaved]);
 
   const selectedRegion = regions.find(

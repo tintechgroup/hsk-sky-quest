@@ -88,46 +88,56 @@ export default function ExploreStickerEditorPage() {
   const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const queryType: StickerType =
-      params.get("type") === "quiz" ? "quiz" : "info";
-    const queryStickerId = params.get("stickerId");
+    let cancelled = false;
 
-    setType(queryType);
-    setStickerId(queryStickerId);
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
 
-    if (queryType === "quiz") {
-      setTitle("Thử thách trắc nghiệm");
-      setQuestions([createQuestion()]);
-    } else {
-      setTitle("Sticker nội dung");
-      setQuestions([]);
-    }
+      const params = new URLSearchParams(window.location.search);
+      const queryType: StickerType =
+        params.get("type") === "quiz" ? "quiz" : "info";
+      const queryStickerId = params.get("stickerId");
 
-    try {
-      const rawDraft = sessionStorage.getItem(DRAFT_KEY);
+      setType(queryType);
+      setStickerId(queryStickerId);
 
-      if (rawDraft && queryStickerId) {
-        const draft = JSON.parse(rawDraft) as RegionDraft;
-        const existingSticker = draft.form?.stickers?.find(
-          (sticker) => sticker.id === queryStickerId,
-        );
-
-        if (existingSticker) {
-          setType(existingSticker.type);
-          setStickerId(existingSticker.id);
-          setTitle(existingSticker.title);
-          setImageUrl(existingSticker.icon);
-          setContent(existingSticker.content);
-          setQuestions(existingSticker.questions);
-          setIsActive(existingSticker.isActive);
-        }
+      if (queryType === "quiz") {
+        setTitle("Thử thách trắc nghiệm");
+        setQuestions([createQuestion()]);
+      } else {
+        setTitle("Sticker nội dung");
+        setQuestions([]);
       }
-    } catch {
-      setError("Không đọc được bản nháp hiện tại.");
-    }
 
-    setReady(true);
+      try {
+        const rawDraft = sessionStorage.getItem(DRAFT_KEY);
+
+        if (rawDraft && queryStickerId) {
+          const draft = JSON.parse(rawDraft) as RegionDraft;
+          const existingSticker = draft.form?.stickers?.find(
+            (sticker) => sticker.id === queryStickerId,
+          );
+
+          if (existingSticker) {
+            setType(existingSticker.type);
+            setStickerId(existingSticker.id);
+            setTitle(existingSticker.title);
+            setImageUrl(existingSticker.icon);
+            setContent(existingSticker.content);
+            setQuestions(existingSticker.questions);
+            setIsActive(existingSticker.isActive);
+          }
+        }
+      } catch {
+        setError("Không đọc được bản nháp hiện tại.");
+      }
+
+      setReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function updateQuestion(

@@ -3,7 +3,9 @@ import mongoose from "mongoose";
 
 import { isAuthenticatedAdmin } from "@/lib/auth";
 import connectMongoDB from "@/lib/mongodb";
-import ExploreRegionModel from "@/models/ExploreRegion";
+import ExploreRegionModel, {
+  type ExploreStickerData,
+} from "@/models/ExploreRegion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -128,7 +130,7 @@ function serializeRegion(value: unknown) {
   };
 }
 
-function cleanStickers(value: unknown) {
+function cleanStickers(value: unknown): ExploreStickerData[] {
   if (!Array.isArray(value)) {
     throw new Error("Danh sách sticker không hợp lệ.");
   }
@@ -139,7 +141,8 @@ function cleanStickers(value: unknown) {
     }
 
     const sticker = item as StickerInput;
-    const type = sticker.type === "quiz" ? "quiz" : "info";
+    const type: ExploreStickerData["type"] =
+      sticker.type === "quiz" ? "quiz" : "info";
     const title = text(sticker.title);
     const icon = text(sticker.icon) || text(sticker.image);
 
