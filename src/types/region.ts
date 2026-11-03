@@ -13,6 +13,12 @@ export interface Region {
   culture: string;
   landmark: string;
 
+  // Nội dung bong bóng chat trong mục Khám phá Trung Quốc.
+  exploreInfo?: string;
+
+  // Các câu hỏi trắc nghiệm của tỉnh.
+  exploreQuestions?: ExploreQuestion[];
+
   /*
    * Vị trí hiển thị trên bản đồ.
    * Giá trị từ 0 đến 100, tương ứng %.
@@ -30,8 +36,20 @@ export interface Region {
 }
 
 /*
- * Dữ liệu tỉnh/thành trả về trực tiếp
- * từ MongoDB và API.
+ * Một câu hỏi trắc nghiệm của tỉnh.
+ * correctIndex: 0 = A, 1 = B, 2 = C, 3 = D.
+ */
+export interface ExploreQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation?: string;
+}
+
+/*
+ * Dữ liệu tỉnh/thành trả về
+ * trực tiếp từ MongoDB và API.
  */
 export interface RegionApiItem {
   _id: string;
@@ -43,6 +61,9 @@ export interface RegionApiItem {
   geography: string;
   culture: string;
   landmark: string;
+
+  exploreInfo?: string;
+  exploreQuestions?: ExploreQuestion[];
 
   mapX: number;
   mapY: number;
@@ -82,6 +103,9 @@ export function mapApiRegionToRegion(
     geography: item.geography,
     culture: item.culture,
     landmark: item.landmark,
+
+    exploreInfo: item.exploreInfo || "",
+    exploreQuestions: item.exploreQuestions || [],
 
     mapX: Number(item.mapX),
     mapY: Number(item.mapY),

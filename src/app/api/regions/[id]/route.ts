@@ -29,14 +29,13 @@ interface RegionUpdateBody {
   geography?: unknown;
   culture?: unknown;
   landmark?: unknown;
+  exploreInfo?: unknown;
+  exploreQuestions?: unknown;
 
   mapX?: unknown;
   mapY?: unknown;
-
   flightOrder?: unknown;
-
   color?: unknown;
-
   isActive?: unknown;
 }
 
@@ -117,13 +116,10 @@ async function isAdminRequest() {
     const user =
       await UserModel.findOne({
         _id: userId,
-
         role: "admin",
-
         isActive: {
           $ne: false,
         },
-
         status: {
           $nin: [
             "blocked",
@@ -148,24 +144,18 @@ async function isAdminRequest() {
 }
 
 function serializeRegion(
-  region: Record<
-    string,
-    unknown
-  >,
+  region: Record<string, unknown>,
 ) {
   return {
-    id:
-      region._id
-        ? String(region._id)
-        : "",
+    id: region._id
+      ? String(region._id)
+      : "",
 
     name:
       getText(region.name),
 
     chineseName:
-      getText(
-        region.chineseName,
-      ),
+      getText(region.chineseName),
 
     pinyin:
       getText(region.pinyin),
@@ -174,52 +164,43 @@ function serializeRegion(
       getText(region.slug),
 
     geography:
-      getText(
-        region.geography,
-      ),
+      getText(region.geography),
 
     culture:
-      getText(
-        region.culture,
-      ),
+      getText(region.culture),
 
     landmark:
-      getText(
-        region.landmark,
-      ),
+      getText(region.landmark),
+
+    exploreInfo:
+      getText(region.exploreInfo),
+
+    exploreQuestions:
+      Array.isArray(region.exploreQuestions)
+        ? region.exploreQuestions
+        : [],
 
     mapX:
-      Number(
-        region.mapX ?? 0,
-      ),
+      Number(region.mapX ?? 0),
 
     mapY:
-      Number(
-        region.mapY ?? 0,
-      ),
+      Number(region.mapY ?? 0),
 
     flightOrder:
-      Number(
-        region.flightOrder ??
-          0,
-      ),
+      Number(region.flightOrder ?? 0),
 
     color:
-      getText(
-        region.color,
-      ) || "#34d399",
+      getText(region.color) ||
+      "#34d399",
 
     isActive:
-      region.isActive !==
-      false,
+      region.isActive !== false,
 
     createdAt:
-      region.createdAt ??
-      null,
+      region.createdAt ?? null,
 
     updatedAt:
-      region.updatedAt ??
-      null,
+      region.updatedAt ?? null,
   };
 }
 
@@ -237,14 +218,11 @@ export async function GET(
       await context.params;
 
     if (
-      !mongoose.Types.ObjectId.isValid(
-        id,
-      )
+      !mongoose.Types.ObjectId.isValid(id)
     ) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Mã tỉnh không hợp lệ.",
         },
@@ -257,15 +235,12 @@ export async function GET(
     await connectMongoDB();
 
     const region =
-      await RegionModel.findById(
-        id,
-      ).lean();
+      await RegionModel.findById(id).lean();
 
     if (!region) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Không tìm thấy tỉnh.",
         },
@@ -278,21 +253,17 @@ export async function GET(
     return NextResponse.json(
       {
         success: true,
-
-        data:
-          serializeRegion(
-            region as unknown as Record<
-              string,
-              unknown
-            >,
-          ),
+        data: serializeRegion(
+          region as unknown as Record<
+            string,
+            unknown
+          >,
+        ),
       },
       {
         status: 200,
-
         headers: {
-          "Cache-Control":
-            "no-store",
+          "Cache-Control": "no-store",
         },
       },
     );
@@ -305,7 +276,6 @@ export async function GET(
     return NextResponse.json(
       {
         success: false,
-
         message:
           "Không thể tải thông tin tỉnh.",
       },
@@ -324,13 +294,10 @@ async function updateRegion(
   context: RouteContext,
 ) {
   try {
-    if (
-      !(await isAdminRequest())
-    ) {
+    if (!(await isAdminRequest())) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Bạn không có quyền cập nhật tỉnh.",
         },
@@ -344,14 +311,11 @@ async function updateRegion(
       await context.params;
 
     if (
-      !mongoose.Types.ObjectId.isValid(
-        id,
-      )
+      !mongoose.Types.ObjectId.isValid(id)
     ) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Mã tỉnh không hợp lệ.",
         },
@@ -370,7 +334,6 @@ async function updateRegion(
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Dữ liệu JSON không hợp lệ.",
         },
@@ -382,14 +345,12 @@ async function updateRegion(
 
     if (
       !body ||
-      typeof body !==
-        "object" ||
+      typeof body !== "object" ||
       Array.isArray(body)
     ) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Dữ liệu cập nhật không hợp lệ.",
         },
@@ -405,15 +366,12 @@ async function updateRegion(
     await connectMongoDB();
 
     const existingRegion =
-      await RegionModel.findById(
-        id,
-      );
+      await RegionModel.findById(id);
 
     if (!existingRegion) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Không tìm thấy tỉnh.",
         },
@@ -431,10 +389,7 @@ async function updateRegion(
     /**
      * NAME
      */
-    if (
-      data.name !==
-      undefined
-    ) {
+    if (data.name !== undefined) {
       const name =
         getText(data.name);
 
@@ -442,7 +397,6 @@ async function updateRegion(
         return NextResponse.json(
           {
             success: false,
-
             message:
               "Tên tỉnh không được để trống.",
           },
@@ -452,27 +406,20 @@ async function updateRegion(
         );
       }
 
-      updateData.name =
-        name;
+      updateData.name = name;
     }
 
     /**
      * CHINESE NAME
      */
-    if (
-      data.chineseName !==
-      undefined
-    ) {
+    if (data.chineseName !== undefined) {
       const chineseName =
-        getText(
-          data.chineseName,
-        );
+        getText(data.chineseName);
 
       if (!chineseName) {
         return NextResponse.json(
           {
             success: false,
-
             message:
               "Tên tiếng Trung không được để trống.",
           },
@@ -489,20 +436,14 @@ async function updateRegion(
     /**
      * PINYIN
      */
-    if (
-      data.pinyin !==
-      undefined
-    ) {
+    if (data.pinyin !== undefined) {
       const pinyin =
-        getText(
-          data.pinyin,
-        );
+        getText(data.pinyin);
 
       if (!pinyin) {
         return NextResponse.json(
           {
             success: false,
-
             message:
               "Pinyin không được để trống.",
           },
@@ -512,32 +453,23 @@ async function updateRegion(
         );
       }
 
-      updateData.pinyin =
-        pinyin;
+      updateData.pinyin = pinyin;
     }
 
     /**
      * SLUG
      */
-    if (
-      data.slug !==
-      undefined
-    ) {
+    if (data.slug !== undefined) {
       const rawSlug =
-        getText(
-          data.slug,
-        );
+        getText(data.slug);
 
       const slug =
-        createSlug(
-          rawSlug,
-        );
+        createSlug(rawSlug);
 
       if (!slug) {
         return NextResponse.json(
           {
             success: false,
-
             message:
               "Slug không hợp lệ.",
           },
@@ -552,7 +484,6 @@ async function updateRegion(
           _id: {
             $ne: id,
           },
-
           slug,
         })
           .select("_id")
@@ -562,7 +493,6 @@ async function updateRegion(
         return NextResponse.json(
           {
             success: false,
-
             message:
               "Slug này đã được sử dụng bởi tỉnh khác.",
           },
@@ -572,27 +502,20 @@ async function updateRegion(
         );
       }
 
-      updateData.slug =
-        slug;
+      updateData.slug = slug;
     }
 
     /**
      * GEOGRAPHY
      */
-    if (
-      data.geography !==
-      undefined
-    ) {
+    if (data.geography !== undefined) {
       const geography =
-        getText(
-          data.geography,
-        );
+        getText(data.geography);
 
       if (!geography) {
         return NextResponse.json(
           {
             success: false,
-
             message:
               "Vui lòng nhập thông tin địa lý.",
           },
@@ -609,20 +532,14 @@ async function updateRegion(
     /**
      * CULTURE
      */
-    if (
-      data.culture !==
-      undefined
-    ) {
+    if (data.culture !== undefined) {
       const culture =
-        getText(
-          data.culture,
-        );
+        getText(data.culture);
 
       if (!culture) {
         return NextResponse.json(
           {
             success: false,
-
             message:
               "Vui lòng nhập thông tin văn hóa.",
           },
@@ -632,27 +549,20 @@ async function updateRegion(
         );
       }
 
-      updateData.culture =
-        culture;
+      updateData.culture = culture;
     }
 
     /**
      * LANDMARK
      */
-    if (
-      data.landmark !==
-      undefined
-    ) {
+    if (data.landmark !== undefined) {
       const landmark =
-        getText(
-          data.landmark,
-        );
+        getText(data.landmark);
 
       if (!landmark) {
         return NextResponse.json(
           {
             success: false,
-
             message:
               "Vui lòng nhập địa danh nổi bật.",
           },
@@ -662,33 +572,124 @@ async function updateRegion(
         );
       }
 
-      updateData.landmark =
-        landmark;
+      updateData.landmark = landmark;
+    }
+
+    /*
+     * Nội dung và câu hỏi cho mục Khám phá Trung Quốc.
+     */
+    if (data.exploreInfo !== undefined) {
+      updateData.exploreInfo =
+        getText(data.exploreInfo);
+    }
+
+    if (data.exploreQuestions !== undefined) {
+      if (!Array.isArray(data.exploreQuestions)) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Danh sách câu hỏi không hợp lệ.",
+          },
+          {
+            status: 400,
+          },
+        );
+      }
+
+      const questions =
+        data.exploreQuestions;
+
+      const validQuestions =
+        questions.every((item) => {
+          if (
+            !item ||
+            typeof item !== "object" ||
+            Array.isArray(item)
+          ) {
+            return false;
+          }
+
+          const question =
+            item as Record<
+              string,
+              unknown
+            >;
+
+          return (
+            typeof question.question === "string" &&
+            question.question.trim().length > 0 &&
+            Array.isArray(question.options) &&
+            question.options.length === 4 &&
+            question.options.every(
+              (option) =>
+                typeof option === "string" &&
+                option.trim().length > 0,
+            ) &&
+            Number.isInteger(question.correctIndex) &&
+            Number(question.correctIndex) >= 0 &&
+            Number(question.correctIndex) <= 3
+          );
+        });
+
+      if (!validQuestions) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Mỗi câu hỏi cần có nội dung, đủ 4 lựa chọn và đáp án đúng từ 0 đến 3.",
+          },
+          {
+            status: 400,
+          },
+        );
+      }
+
+      updateData.exploreQuestions =
+        questions.map((item, index) => {
+          const question =
+            item as Record<
+              string,
+              unknown
+            >;
+
+          return {
+            id:
+              getText(question.id) ||
+              `q-${index + 1}`,
+
+            question:
+              getText(question.question),
+
+            options:
+              (question.options as string[]).map(
+                (option) => option.trim(),
+              ),
+
+            correctIndex:
+              Number(question.correctIndex),
+
+            explanation:
+              getText(question.explanation),
+          };
+        });
     }
 
     /**
      * MAP X
      */
-    if (
-      data.mapX !==
-      undefined
-    ) {
+    if (data.mapX !== undefined) {
       const mapX =
-        Number(
-          data.mapX,
-        );
+        Number(data.mapX);
 
       if (
-        !Number.isFinite(
-          mapX,
-        ) ||
+        !Number.isFinite(mapX) ||
         mapX < 0 ||
         mapX > 100
       ) {
         return NextResponse.json(
           {
             success: false,
-
             message:
               "Tọa độ X phải nằm trong khoảng 0 đến 100.",
           },
@@ -698,33 +699,24 @@ async function updateRegion(
         );
       }
 
-      updateData.mapX =
-        mapX;
+      updateData.mapX = mapX;
     }
 
     /**
      * MAP Y
      */
-    if (
-      data.mapY !==
-      undefined
-    ) {
+    if (data.mapY !== undefined) {
       const mapY =
-        Number(
-          data.mapY,
-        );
+        Number(data.mapY);
 
       if (
-        !Number.isFinite(
-          mapY,
-        ) ||
+        !Number.isFinite(mapY) ||
         mapY < 0 ||
         mapY > 100
       ) {
         return NextResponse.json(
           {
             success: false,
-
             message:
               "Tọa độ Y phải nằm trong khoảng 0 đến 100.",
           },
@@ -734,32 +726,23 @@ async function updateRegion(
         );
       }
 
-      updateData.mapY =
-        mapY;
+      updateData.mapY = mapY;
     }
 
     /**
      * FLIGHT ORDER
      */
-    if (
-      data.flightOrder !==
-      undefined
-    ) {
+    if (data.flightOrder !== undefined) {
       const flightOrder =
-        Number(
-          data.flightOrder,
-        );
+        Number(data.flightOrder);
 
       if (
-        !Number.isInteger(
-          flightOrder,
-        ) ||
+        !Number.isInteger(flightOrder) ||
         flightOrder < 0
       ) {
         return NextResponse.json(
           {
             success: false,
-
             message:
               "Thứ tự bay phải là số nguyên không âm.",
           },
@@ -776,24 +759,14 @@ async function updateRegion(
     /**
      * COLOR
      */
-    if (
-      data.color !==
-      undefined
-    ) {
+    if (data.color !== undefined) {
       const color =
-        getText(
-          data.color,
-        );
+        getText(data.color);
 
-      if (
-        !isValidColor(
-          color,
-        )
-      ) {
+      if (!isValidColor(color)) {
         return NextResponse.json(
           {
             success: false,
-
             message:
               "Màu phải có dạng #34d399.",
           },
@@ -803,8 +776,7 @@ async function updateRegion(
         );
       }
 
-      updateData.color =
-        color;
+      updateData.color = color;
     }
 
     /**
@@ -814,23 +786,17 @@ async function updateRegion(
      * Ẩn tỉnh
      * Kích hoạt
      */
-    if (
-      typeof data.isActive ===
-      "boolean"
-    ) {
+    if (typeof data.isActive === "boolean") {
       updateData.isActive =
         data.isActive;
     }
 
     if (
-      Object.keys(
-        updateData,
-      ).length === 0
+      Object.keys(updateData).length === 0
     ) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Không có dữ liệu nào cần cập nhật.",
         },
@@ -843,17 +809,12 @@ async function updateRegion(
     const updatedRegion =
       await RegionModel.findByIdAndUpdate(
         id,
-
         {
-          $set:
-            updateData,
+          $set: updateData,
         },
-
         {
           new: true,
-
-          runValidators:
-            true,
+          runValidators: true,
         },
       ).lean();
 
@@ -861,7 +822,6 @@ async function updateRegion(
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Không tìm thấy tỉnh sau khi cập nhật.",
         },
@@ -874,25 +834,19 @@ async function updateRegion(
     return NextResponse.json(
       {
         success: true,
-
         message:
-          typeof data.isActive ===
-            "boolean" &&
-          Object.keys(
-            updateData,
-          ).length === 1
+          typeof data.isActive === "boolean" &&
+          Object.keys(updateData).length === 1
             ? data.isActive
               ? "Đã kích hoạt tỉnh."
               : "Đã ẩn tỉnh."
             : "Đã cập nhật tỉnh thành công.",
-
-        data:
-          serializeRegion(
-            updatedRegion as unknown as Record<
-              string,
-              unknown
-            >,
-          ),
+        data: serializeRegion(
+          updatedRegion as unknown as Record<
+            string,
+            unknown
+          >,
+        ),
       },
       {
         status: 200,
@@ -904,15 +858,10 @@ async function updateRegion(
       error,
     );
 
-    if (
-      isDuplicateKeyError(
-        error,
-      )
-    ) {
+    if (isDuplicateKeyError(error)) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Tên hoặc slug tỉnh đã tồn tại.",
         },
@@ -924,18 +873,14 @@ async function updateRegion(
 
     if (
       error instanceof
-      mongoose.Error
-        .ValidationError
+      mongoose.Error.ValidationError
     ) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Dữ liệu tỉnh không hợp lệ.",
-
-          error:
-            error.message,
+          error: error.message,
         },
         {
           status: 400,
@@ -946,7 +891,6 @@ async function updateRegion(
     return NextResponse.json(
       {
         success: false,
-
         message:
           "Không thể cập nhật tỉnh.",
       },
@@ -995,13 +939,10 @@ export async function DELETE(
   context: RouteContext,
 ) {
   try {
-    if (
-      !(await isAdminRequest())
-    ) {
+    if (!(await isAdminRequest())) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Bạn không có quyền xóa tỉnh.",
         },
@@ -1015,14 +956,11 @@ export async function DELETE(
       await context.params;
 
     if (
-      !mongoose.Types.ObjectId.isValid(
-        id,
-      )
+      !mongoose.Types.ObjectId.isValid(id)
     ) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Mã tỉnh không hợp lệ.",
         },
@@ -1035,19 +973,14 @@ export async function DELETE(
     await connectMongoDB();
 
     const region =
-      await RegionModel.findById(
-        id,
-      )
-        .select(
-          "_id name",
-        )
+      await RegionModel.findById(id)
+        .select("_id name")
         .lean();
 
     if (!region) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Không tìm thấy tỉnh.",
         },
@@ -1061,19 +994,14 @@ export async function DELETE(
      * Không cho xóa tỉnh nếu còn câu hỏi.
      */
     const questionCount =
-      await QuestionModel.countDocuments(
-        {
-          region: id,
-        },
-      );
+      await QuestionModel.countDocuments({
+        region: id,
+      });
 
-    if (
-      questionCount > 0
-    ) {
+    if (questionCount > 0) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             `Không thể xóa tỉnh vì đang có ${questionCount} câu hỏi thuộc tỉnh này. Hãy xóa hoặc chuyển các câu hỏi trước.`,
         },
@@ -1083,17 +1011,13 @@ export async function DELETE(
       );
     }
 
-    await RegionModel.findByIdAndDelete(
-      id,
-    );
+    await RegionModel.findByIdAndDelete(id);
 
     return NextResponse.json(
       {
         success: true,
-
         message:
           "Đã xóa tỉnh vĩnh viễn.",
-
         data: {
           id,
         },
@@ -1111,7 +1035,6 @@ export async function DELETE(
     return NextResponse.json(
       {
         success: false,
-
         message:
           "Không thể xóa tỉnh.",
       },

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { HSKLevel } from "@/types/game";
 
 interface WelcomeScreenProps {
@@ -249,6 +250,15 @@ export default function WelcomeScreen({
             <span>BẮT ĐẦU HÀNH TRÌNH</span>
             <span aria-hidden="true">→</span>
           </button>
+
+          <Link
+            href="/explore-china"
+            className="mt-3 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-200/25 bg-cyan-200/[.08] px-4 text-sm font-black text-cyan-100 no-underline transition hover:-translate-y-0.5 hover:border-cyan-200/50 hover:bg-cyan-200/[.14] sm:text-base"
+          >
+            <span aria-hidden="true">🗺️</span>
+            <span>KHÁM PHÁ TRUNG QUỐC</span>
+            <span aria-hidden="true">→</span>
+          </Link>
 
           <p className="mt-3 text-center text-[11px] leading-5 text-slate-500">
             Bạn cần đăng nhập để lưu tiến độ và

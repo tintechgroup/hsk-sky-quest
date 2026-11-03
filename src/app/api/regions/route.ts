@@ -14,27 +14,18 @@ export const dynamic = "force-dynamic";
 
 interface RegionRequestBody {
   name?: unknown;
-
   chineseName?: unknown;
-
   pinyin?: unknown;
-
   slug?: unknown;
-
   geography?: unknown;
-
   culture?: unknown;
-
   landmark?: unknown;
-
+  exploreInfo?: unknown;
+  exploreQuestions?: unknown;
   mapX?: unknown;
-
   mapY?: unknown;
-
   flightOrder?: unknown;
-
   color?: unknown;
-
   isActive?: unknown;
 }
 
@@ -121,12 +112,7 @@ function isDuplicateKeyError(
  * Kiểm tra tài khoản hiện tại có quyền admin.
  *
  * Luồng:
- *
- * Cookie
- * -> JWT
- * -> userId
- * -> MongoDB
- * -> role === "admin"
+ * Cookie -> JWT -> userId -> MongoDB -> role === "admin"
  *
  * Cách này lấy quyền mới nhất từ MongoDB.
  */
@@ -144,13 +130,10 @@ async function isAdminRequest() {
     const user =
       await UserModel.findOne({
         _id: userId,
-
         role: "admin",
-
         isActive: {
           $ne: false,
         },
-
         status: {
           $nin: [
             "blocked",
@@ -163,12 +146,8 @@ async function isAdminRequest() {
         )
         .lean();
 
-    return Boolean(
-      user,
-    );
-  } catch (
-    error
-  ) {
+    return Boolean(user);
+  } catch (error) {
     console.error(
       "Kiểm tra quyền admin regions:",
       error,
@@ -182,10 +161,7 @@ async function isAdminRequest() {
  * Chuẩn hóa object Region trả về frontend.
  */
 function serializeRegion(
-  region: Record<
-    string,
-    unknown
-  >,
+  region: Record<string, unknown>,
 ) {
   const rawId =
     region._id;
@@ -195,12 +171,8 @@ function serializeRegion(
       rawId &&
       typeof rawId === "object" &&
       "toString" in rawId
-        ? String(
-            rawId,
-          )
-        : String(
-            rawId ?? "",
-          ),
+        ? String(rawId)
+        : String(rawId ?? ""),
 
     name:
       normalizeString(
@@ -237,79 +209,64 @@ function serializeRegion(
         region.landmark,
       ),
 
+    exploreInfo:
+      normalizeString(
+        region.exploreInfo,
+      ),
+
+    exploreQuestions:
+      Array.isArray(region.exploreQuestions)
+        ? region.exploreQuestions
+        : [],
+
     mapX:
-      typeof region.mapX ===
-      "number"
+      typeof region.mapX === "number"
         ? region.mapX
-        : Number(
-            region.mapX ??
-              0,
-          ),
+        : Number(region.mapX ?? 0),
 
     mapY:
-      typeof region.mapY ===
-      "number"
+      typeof region.mapY === "number"
         ? region.mapY
-        : Number(
-            region.mapY ??
-              0,
-          ),
+        : Number(region.mapY ?? 0),
 
     flightOrder:
-      typeof region.flightOrder ===
-      "number"
+      typeof region.flightOrder === "number"
         ? region.flightOrder
-        : Number(
-            region.flightOrder ??
-              0,
-          ),
+        : Number(region.flightOrder ?? 0),
 
     color:
-      normalizeString(
-        region.color,
-      ) ||
+      normalizeString(region.color) ||
       "#34d399",
 
     isActive:
-      region.isActive !==
-      false,
+      region.isActive !== false,
 
     createdAt:
-      region.createdAt ??
-      null,
+      region.createdAt ?? null,
 
     updatedAt:
-      region.updatedAt ??
-      null,
+      region.updatedAt ?? null,
   };
 }
 
 /**
  * GET /api/regions
  *
- * Public:
- * chỉ trả tỉnh đang hoạt động.
+ * Public: chỉ trả tỉnh đang hoạt động.
  *
  * GET /api/regions?scope=admin
  *
- * Admin:
- * trả cả tỉnh active + inactive.
+ * Admin: trả cả tỉnh đang hoạt động và đã ẩn.
  */
 export async function GET(
   request: Request,
 ) {
   try {
-    const {
-      searchParams,
-    } =
-      new URL(
-        request.url,
-      );
+    const { searchParams } =
+      new URL(request.url);
 
     const scope =
-      searchParams.get(
-        "scope",
-      );
+      searchParams.get("scope");
 
     const adminScope =
       scope === "admin";
@@ -325,7 +282,6 @@ export async function GET(
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Bạn không có quyền quản trị tỉnh.",
         },
@@ -338,24 +294,18 @@ export async function GET(
     await connectMongoDB();
 
     /**
-     * Game:
-     * chỉ lấy tỉnh active.
-     *
-     * Admin:
-     * lấy tất cả.
+     * Game: chỉ lấy tỉnh active.
+     * Admin: lấy tất cả tỉnh.
      */
     const filter =
       adminScope
         ? {}
         : {
-            isActive:
-              true,
+            isActive: true,
           };
 
     const regions =
-      await RegionModel.find(
-        filter,
-      )
+      await RegionModel.find(filter)
         .sort({
           flightOrder: 1,
           name: 1,
@@ -363,27 +313,21 @@ export async function GET(
         .lean();
 
     const data =
-      regions.map(
-        (
-          region,
-        ) =>
-          serializeRegion(
-            region as unknown as Record<
-              string,
-              unknown
-            >,
-          ),
+      regions.map((region) =>
+        serializeRegion(
+          region as unknown as Record<
+            string,
+            unknown
+          >,
+        ),
       );
 
     const response =
       NextResponse.json(
         {
           success: true,
-
           data,
-
-          total:
-            data.length,
+          total: data.length,
         },
         {
           status: 200,
@@ -396,9 +340,7 @@ export async function GET(
     );
 
     return response;
-  } catch (
-    error
-  ) {
+  } catch (error) {
     console.error(
       "GET /api/regions:",
       error,
@@ -407,7 +349,6 @@ export async function GET(
     return NextResponse.json(
       {
         success: false,
-
         message:
           "Không thể tải danh sách tỉnh.",
       },
@@ -436,7 +377,6 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Bạn không có quyền thêm tỉnh.",
         },
@@ -446,8 +386,7 @@ export async function POST(
       );
     }
 
-    let body:
-      unknown;
+    let body: unknown;
 
     try {
       body =
@@ -456,7 +395,6 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Dữ liệu JSON gửi lên không hợp lệ.",
         },
@@ -468,16 +406,12 @@ export async function POST(
 
     if (
       !body ||
-      typeof body !==
-        "object" ||
-      Array.isArray(
-        body,
-      )
+      typeof body !== "object" ||
+      Array.isArray(body)
     ) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Dữ liệu gửi lên không hợp lệ.",
         },
@@ -494,73 +428,98 @@ export async function POST(
      * Chuẩn hóa dữ liệu.
      */
     const name =
-      normalizeString(
-        data.name,
-      );
+      normalizeString(data.name);
 
     const chineseName =
-      normalizeString(
-        data.chineseName,
-      );
+      normalizeString(data.chineseName);
 
     const pinyin =
-      normalizeString(
-        data.pinyin,
-      );
+      normalizeString(data.pinyin);
 
     const requestedSlug =
-      normalizeString(
-        data.slug,
-      );
+      normalizeString(data.slug);
 
     const slug =
       createSlug(
-        requestedSlug ||
-          name,
+        requestedSlug || name,
       );
 
     const geography =
-      normalizeString(
-        data.geography,
-      );
+      normalizeString(data.geography);
 
     const culture =
-      normalizeString(
-        data.culture,
-      );
+      normalizeString(data.culture);
 
     const landmark =
-      normalizeString(
-        data.landmark,
+      normalizeString(data.landmark);
+
+    const exploreInfo =
+      normalizeString(data.exploreInfo);
+
+    const exploreQuestions =
+      Array.isArray(data.exploreQuestions)
+        ? data.exploreQuestions
+        : [];
+
+    const validQuestions =
+      exploreQuestions.every((item) => {
+        if (
+          !item ||
+          typeof item !== "object" ||
+          Array.isArray(item)
+        ) {
+          return false;
+        }
+
+        const question =
+          item as Record<string, unknown>;
+
+        return (
+          typeof question.question === "string" &&
+          question.question.trim().length > 0 &&
+          Array.isArray(question.options) &&
+          question.options.length === 4 &&
+          question.options.every(
+            (option) =>
+              typeof option === "string" &&
+              option.trim().length > 0,
+          ) &&
+          Number.isInteger(question.correctIndex) &&
+          Number(question.correctIndex) >= 0 &&
+          Number(question.correctIndex) <= 3
+        );
+      });
+
+    if (!validQuestions) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Mỗi câu hỏi cần có nội dung, đủ 4 lựa chọn và đáp án đúng từ 0 đến 3.",
+        },
+        {
+          status: 400,
+        },
       );
+    }
 
     const mapX =
-      Number(
-        data.mapX,
-      );
+      Number(data.mapX);
 
     const mapY =
-      Number(
-        data.mapY,
-      );
+      Number(data.mapY);
 
     const flightOrder =
-      Number(
-        data.flightOrder,
-      );
+      Number(data.flightOrder);
 
     const requestedColor =
-      normalizeString(
-        data.color,
-      );
+      normalizeString(data.color);
 
     const color =
-      requestedColor ||
-      "#34d399";
+      requestedColor || "#34d399";
 
     const isActive =
-      typeof data.isActive ===
-      "boolean"
+      typeof data.isActive === "boolean"
         ? data.isActive
         : true;
 
@@ -576,7 +535,6 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Thiếu tên tỉnh, tên tiếng Trung, pinyin hoặc slug.",
         },
@@ -597,7 +555,6 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Vui lòng nhập đầy đủ địa lý, văn hóa và địa danh nổi bật.",
         },
@@ -611,16 +568,13 @@ export async function POST(
      * Validate mapX.
      */
     if (
-      !Number.isFinite(
-        mapX,
-      ) ||
+      !Number.isFinite(mapX) ||
       mapX < 0 ||
       mapX > 100
     ) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Tọa độ X phải nằm trong khoảng từ 0 đến 100.",
         },
@@ -634,16 +588,13 @@ export async function POST(
      * Validate mapY.
      */
     if (
-      !Number.isFinite(
-        mapY,
-      ) ||
+      !Number.isFinite(mapY) ||
       mapY < 0 ||
       mapY > 100
     ) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Tọa độ Y phải nằm trong khoảng từ 0 đến 100.",
         },
@@ -657,15 +608,12 @@ export async function POST(
      * Validate flightOrder.
      */
     if (
-      !Number.isInteger(
-        flightOrder,
-      ) ||
+      !Number.isInteger(flightOrder) ||
       flightOrder < 0
     ) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Thứ tự chuyến bay phải là số nguyên không âm.",
         },
@@ -678,15 +626,10 @@ export async function POST(
     /**
      * Validate color.
      */
-    if (
-      !isValidColor(
-        color,
-      )
-    ) {
+    if (!isValidColor(color)) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Màu tỉnh phải có dạng #34d399.",
         },
@@ -705,18 +648,13 @@ export async function POST(
       await RegionModel.findOne({
         slug,
       })
-        .select(
-          "_id slug",
-        )
+        .select("_id slug")
         .lean();
 
-    if (
-      existingRegion
-    ) {
+    if (existingRegion) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Slug của tỉnh đã tồn tại.",
         },
@@ -732,33 +670,62 @@ export async function POST(
     const createdRegion =
       await RegionModel.create({
         name,
-
         chineseName,
-
         pinyin,
-
         slug,
-
         geography,
-
         culture,
-
         landmark,
+        exploreInfo,
+
+        exploreQuestions:
+          exploreQuestions.map(
+            (item, index) => {
+              const question =
+                item as Record<
+                  string,
+                  unknown
+                >;
+
+              return {
+                id:
+                  normalizeString(
+                    question.id,
+                  ) || `q-${index + 1}`,
+
+                question:
+                  normalizeString(
+                    question.question,
+                  ),
+
+                options:
+                  (
+                    question.options as string[]
+                  ).map((option) =>
+                    option.trim(),
+                  ),
+
+                correctIndex:
+                  Number(
+                    question.correctIndex,
+                  ),
+
+                explanation:
+                  normalizeString(
+                    question.explanation,
+                  ),
+              };
+            },
+          ),
 
         mapX,
-
         mapY,
-
         flightOrder,
-
         color,
-
         isActive,
       });
 
     /*
-     * Quan trọng:
-     *
      * Mongoose document không có index signature
      * tương thích trực tiếp với
      * Record<string, unknown>.
@@ -776,34 +743,24 @@ export async function POST(
     return NextResponse.json(
       {
         success: true,
-
         message:
           "Đã thêm tỉnh vào MongoDB.",
-
-        data:
-          serializedRegion,
+        data: serializedRegion,
       },
       {
         status: 201,
       },
     );
-  } catch (
-    error
-  ) {
+  } catch (error) {
     console.error(
       "POST /api/regions:",
       error,
     );
 
-    if (
-      isDuplicateKeyError(
-        error,
-      )
-    ) {
+    if (isDuplicateKeyError(error)) {
       return NextResponse.json(
         {
           success: false,
-
           message:
             "Tỉnh hoặc slug này đã tồn tại.",
         },
@@ -816,7 +773,6 @@ export async function POST(
     return NextResponse.json(
       {
         success: false,
-
         message:
           "Không thể thêm tỉnh mới.",
       },

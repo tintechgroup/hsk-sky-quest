@@ -22,6 +22,14 @@ interface RegionItem {
   geography: string;
   culture: string;
   landmark: string;
+  exploreInfo: string;
+  exploreQuestions: {
+    id: string;
+    question: string;
+    options: string[];
+    correctIndex: number;
+    explanation?: string;
+  }[];
 
   mapX: number;
   mapY: number;
@@ -50,6 +58,8 @@ interface RegionForm {
   culture: string;
 
   landmark: string;
+  exploreInfo: string;
+  exploreQuestionsJson: string;
 
   mapX: string;
 
@@ -100,6 +110,8 @@ function createEmptyForm(
     culture: "",
 
     landmark: "",
+    exploreInfo: "",
+    exploreQuestionsJson: "[]",
 
     mapX: "50",
 
@@ -151,9 +163,7 @@ function getNumber(
   const number =
     Number(value);
 
-  return Number.isFinite(
-    number,
-  )
+  return Number.isFinite(number)
     ? number
     : fallback;
 }
@@ -192,9 +202,7 @@ function normalizeRegion(
     name,
 
     chineseName:
-      getString(
-        raw.chineseName,
-      ),
+      getString(raw.chineseName),
 
     pinyin:
       getString(raw.pinyin),
@@ -203,54 +211,86 @@ function normalizeRegion(
       getString(raw.slug),
 
     geography:
-      getString(
-        raw.geography,
-      ),
+      getString(raw.geography),
 
     culture:
       getString(raw.culture),
 
     landmark:
-      getString(
-        raw.landmark,
-      ),
+      getString(raw.landmark),
+
+    exploreInfo:
+      getString(raw.exploreInfo),
+
+    exploreQuestions:
+      Array.isArray(raw.exploreQuestions)
+        ? raw.exploreQuestions
+            .filter(
+              (item) =>
+                item &&
+                typeof item === "object",
+            )
+            .map((item, index) => {
+              const question =
+                item as Record<
+                  string,
+                  unknown
+                >;
+
+              return {
+                id:
+                  getString(question.id) ||
+                  `q-${index + 1}`,
+
+                question:
+                  getString(
+                    question.question,
+                  ),
+
+                options:
+                  Array.isArray(question.options)
+                    ? question.options.map(
+                        (option) =>
+                          getString(option),
+                      )
+                    : [],
+
+                correctIndex:
+                  getNumber(
+                    question.correctIndex,
+                  ),
+
+                explanation:
+                  getString(
+                    question.explanation,
+                  ),
+              };
+            })
+        : [],
 
     mapX:
-      getNumber(
-        raw.mapX,
-        50,
-      ),
+      getNumber(raw.mapX, 50),
 
     mapY:
-      getNumber(
-        raw.mapY,
-        50,
-      ),
+      getNumber(raw.mapY, 50),
 
     flightOrder:
-      getNumber(
-        raw.flightOrder,
-        0,
-      ),
+      getNumber(raw.flightOrder, 0),
 
     color:
-      getString(
-        raw.color,
-      ) || "#34d399",
+      getString(raw.color) ||
+      "#34d399",
 
     isActive:
-      raw.isActive !==
-      false,
+      raw.isActive !== false,
 
     createdAt:
-      typeof raw.createdAt ===
-      "string"
+      typeof raw.createdAt === "string"
         ? raw.createdAt
         : null,
 
     updatedAt:
-      typeof raw.updatedAt ===
-      "string"
+      typeof raw.updatedAt === "string"
         ? raw.updatedAt
         : null,
   };
@@ -259,9 +299,7 @@ function normalizeRegion(
 function getNextFlightOrder(
   regions: RegionItem[],
 ) {
-  if (
-    regions.length === 0
-  ) {
+  if (regions.length === 0) {
     return 0;
   }
 
@@ -362,7 +400,6 @@ export default function AdminRegionsPage() {
 
   function clearMessages() {
     setErrorMessage("");
-
     setSuccessMessage("");
   }
 
@@ -370,22 +407,15 @@ export default function AdminRegionsPage() {
     useCallback(async () => {
       try {
         setIsLoading(true);
-
         setErrorMessage("");
 
         const response =
           await fetch(
             "/api/regions?scope=admin",
             {
-              method:
-                "GET",
-
-              credentials:
-                "include",
-
-              cache:
-                "no-store",
-
+              method: "GET",
+              credentials: "include",
+              cache: "no-store",
               headers: {
                 Accept:
                   "application/json",
@@ -394,20 +424,13 @@ export default function AdminRegionsPage() {
           );
 
         const result =
-          await readResponse(
-            response,
-          );
+          await readResponse(response);
 
         if (
-          response.status ===
-            401 ||
-          response.status ===
-            403
+          response.status === 401 ||
+          response.status === 403
         ) {
-          setIsAuthorized(
-            false,
-          );
-
+          setIsAuthorized(false);
           setRegions([]);
 
           setErrorMessage(
@@ -420,8 +443,7 @@ export default function AdminRegionsPage() {
 
         if (
           !response.ok ||
-          result.success !==
-            true
+          result.success !== true
         ) {
           throw new Error(
             result.message ||
@@ -430,17 +452,13 @@ export default function AdminRegionsPage() {
         }
 
         const rawRegions =
-          Array.isArray(
-            result.data,
-          )
+          Array.isArray(result.data)
             ? result.data
             : [];
 
         const normalizedRegions =
           rawRegions
-            .map(
-              normalizeRegion,
-            )
+            .map(normalizeRegion)
             .filter(
               (
                 region,
@@ -448,13 +466,8 @@ export default function AdminRegionsPage() {
                 region !== null,
             );
 
-        setRegions(
-          normalizedRegions,
-        );
-
-        setIsAuthorized(
-          true,
-        );
+        setRegions(normalizedRegions);
+        setIsAuthorized(true);
 
         return normalizedRegions;
       } catch (error) {
@@ -466,23 +479,19 @@ export default function AdminRegionsPage() {
         setRegions([]);
 
         setErrorMessage(
-          error instanceof
-          Error
+          error instanceof Error
             ? error.message
             : "Không thể kết nối đến máy chủ.",
         );
 
         return [];
       } finally {
-        setIsLoading(
-          false,
-        );
+        setIsLoading(false);
       }
     }, []);
 
   useEffect(() => {
-    let cancelled =
-      false;
+    let cancelled = false;
 
     async function initialize() {
       const loadedRegions =
@@ -518,37 +527,26 @@ export default function AdminRegionsPage() {
       return regions.filter(
         (region) => {
           const matchesStatus =
-            statusFilter ===
-              "all" ||
-            (statusFilter ===
-              "active" &&
+            statusFilter === "all" ||
+            (statusFilter === "active" &&
               region.isActive) ||
-            (statusFilter ===
-              "inactive" &&
+            (statusFilter === "inactive" &&
               !region.isActive);
 
           const matchesKeyword =
             !keyword ||
             region.name
               .toLowerCase()
-              .includes(
-                keyword,
-              ) ||
+              .includes(keyword) ||
             region.chineseName
               .toLowerCase()
-              .includes(
-                keyword,
-              ) ||
+              .includes(keyword) ||
             region.pinyin
               .toLowerCase()
-              .includes(
-                keyword,
-              ) ||
+              .includes(keyword) ||
             region.slug
               .toLowerCase()
-              .includes(
-                keyword,
-              );
+              .includes(keyword);
 
           return (
             matchesStatus &&
@@ -576,17 +574,12 @@ export default function AdminRegionsPage() {
     Key extends keyof RegionForm,
   >(
     field: Key,
-    value:
-      RegionForm[Key],
+    value: RegionForm[Key],
   ) {
-    setForm(
-      (previous) => ({
-        ...previous,
-
-        [field]:
-          value,
-      }),
-    );
+    setForm((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
 
     clearMessages();
   }
@@ -594,33 +587,23 @@ export default function AdminRegionsPage() {
   function handleNameChange(
     value: string,
   ) {
-    setForm(
-      (previous) => {
-        const oldAutomaticSlug =
-          createSlug(
-            previous.name,
-          );
+    setForm((previous) => {
+      const oldAutomaticSlug =
+        createSlug(previous.name);
 
-        const shouldUpdateSlug =
-          !previous.slug ||
-          previous.slug ===
-            oldAutomaticSlug;
+      const shouldUpdateSlug =
+        !previous.slug ||
+        previous.slug ===
+          oldAutomaticSlug;
 
-        return {
-          ...previous,
-
-          name:
-            value,
-
-          slug:
-            shouldUpdateSlug
-              ? createSlug(
-                  value,
-                )
-              : previous.slug,
-        };
-      },
-    );
+      return {
+        ...previous,
+        name: value,
+        slug: shouldUpdateSlug
+          ? createSlug(value)
+          : previous.slug,
+      };
+    });
 
     clearMessages();
   }
@@ -632,40 +615,26 @@ export default function AdminRegionsPage() {
       event.currentTarget.getBoundingClientRect();
 
     const x =
-      ((event.clientX -
-        rectangle.left) /
+      ((event.clientX - rectangle.left) /
         rectangle.width) *
       100;
 
     const y =
-      ((event.clientY -
-        rectangle.top) /
+      ((event.clientY - rectangle.top) /
         rectangle.height) *
       100;
 
-    setForm(
-      (previous) => ({
-        ...previous,
-
-        mapX:
-          Math.min(
-            100,
-            Math.max(
-              0,
-              x,
-            ),
-          ).toFixed(2),
-
-        mapY:
-          Math.min(
-            100,
-            Math.max(
-              0,
-              y,
-            ),
-          ).toFixed(2),
-      }),
-    );
+    setForm((previous) => ({
+      ...previous,
+      mapX: Math.min(
+        100,
+        Math.max(0, x),
+      ).toFixed(2),
+      mapY: Math.min(
+        100,
+        Math.max(0, y),
+      ).toFixed(2),
+    }));
 
     clearMessages();
   }
@@ -673,74 +642,45 @@ export default function AdminRegionsPage() {
   function startEditing(
     region: RegionItem,
   ) {
-    setEditingRegionId(
-      region.id,
-    );
+    setEditingRegionId(region.id);
 
     setForm({
-      name:
-        region.name,
-
-      chineseName:
-        region.chineseName,
-
-      pinyin:
-        region.pinyin,
-
-      slug:
-        region.slug,
-
-      geography:
-        region.geography,
-
-      culture:
-        region.culture,
-
-      landmark:
-        region.landmark,
-
-      mapX:
-        String(
-          region.mapX,
+      name: region.name,
+      chineseName: region.chineseName,
+      pinyin: region.pinyin,
+      slug: region.slug,
+      geography: region.geography,
+      culture: region.culture,
+      landmark: region.landmark,
+      exploreInfo: region.exploreInfo,
+      exploreQuestionsJson:
+        JSON.stringify(
+          region.exploreQuestions,
+          null,
+          2,
         ),
-
-      mapY:
-        String(
-          region.mapY,
-        ),
-
+      mapX: String(region.mapX),
+      mapY: String(region.mapY),
       flightOrder:
-        String(
-          region.flightOrder,
-        ),
-
-      color:
-        region.color,
-
-      isActive:
-        region.isActive,
+        String(region.flightOrder),
+      color: region.color,
+      isActive: region.isActive,
     });
 
     clearMessages();
 
     window.scrollTo({
       top: 0,
-
-      behavior:
-        "smooth",
+      behavior: "smooth",
     });
   }
 
   function cancelEditing() {
-    setEditingRegionId(
-      null,
-    );
+    setEditingRegionId(null);
 
     setForm(
       createEmptyForm(
-        getNextFlightOrder(
-          regions,
-        ),
+        getNextFlightOrder(regions),
       ),
     );
 
@@ -748,46 +688,66 @@ export default function AdminRegionsPage() {
   }
 
   function validateForm() {
-    if (
-      !form.name.trim()
-    ) {
+    if (!form.name.trim()) {
       return "Vui lòng nhập tên tiếng Việt.";
     }
 
-    if (
-      !form.chineseName.trim()
-    ) {
+    if (!form.chineseName.trim()) {
       return "Vui lòng nhập tên tiếng Trung.";
     }
 
-    if (
-      !form.pinyin.trim()
-    ) {
+    if (!form.pinyin.trim()) {
       return "Vui lòng nhập Pinyin.";
     }
 
-    if (
-      !form.slug.trim()
-    ) {
+    if (!form.slug.trim()) {
       return "Vui lòng nhập slug.";
     }
 
-    if (
-      !form.geography.trim()
-    ) {
+    if (!form.geography.trim()) {
       return "Vui lòng nhập thông tin địa lý.";
     }
 
-    if (
-      !form.culture.trim()
-    ) {
+    if (!form.culture.trim()) {
       return "Vui lòng nhập thông tin văn hóa.";
     }
 
-    if (
-      !form.landmark.trim()
-    ) {
+    if (!form.landmark.trim()) {
       return "Vui lòng nhập địa danh nổi bật.";
+    }
+
+    try {
+      const questions =
+        JSON.parse(
+          form.exploreQuestionsJson || "[]",
+        );
+
+      if (
+        !Array.isArray(questions) ||
+        questions.some(
+          (question) =>
+            !question ||
+            typeof question.question !==
+              "string" ||
+            !question.question.trim() ||
+            !Array.isArray(question.options) ||
+            question.options.length !== 4 ||
+            question.options.some(
+              (option: unknown) =>
+                typeof option !== "string" ||
+                !option.trim(),
+            ) ||
+            !Number.isInteger(
+              question.correctIndex,
+            ) ||
+            question.correctIndex < 0 ||
+            question.correctIndex > 3,
+        )
+      ) {
+        return "Câu hỏi phải là danh sách JSON; mỗi câu cần question, 4 options và correctIndex từ 0 đến 3.";
+      }
+    } catch {
+      return "Danh sách câu hỏi phải là JSON hợp lệ.";
     }
 
     const mapX =
@@ -797,9 +757,7 @@ export default function AdminRegionsPage() {
       Number(form.mapY);
 
     if (
-      !Number.isFinite(
-        mapX,
-      ) ||
+      !Number.isFinite(mapX) ||
       mapX < 0 ||
       mapX > 100
     ) {
@@ -807,9 +765,7 @@ export default function AdminRegionsPage() {
     }
 
     if (
-      !Number.isFinite(
-        mapY,
-      ) ||
+      !Number.isFinite(mapY) ||
       mapY < 0 ||
       mapY > 100
     ) {
@@ -817,14 +773,10 @@ export default function AdminRegionsPage() {
     }
 
     const flightOrder =
-      Number(
-        form.flightOrder,
-      );
+      Number(form.flightOrder);
 
     if (
-      !Number.isInteger(
-        flightOrder,
-      ) ||
+      !Number.isInteger(flightOrder) ||
       flightOrder < 0
     ) {
       return "Thứ tự bay phải là số nguyên không âm.";
@@ -853,124 +805,77 @@ export default function AdminRegionsPage() {
     const validationMessage =
       validateForm();
 
-    if (
-      validationMessage
-    ) {
+    if (validationMessage) {
       setErrorMessage(
         validationMessage,
       );
-
-      setSuccessMessage(
-        "",
-      );
-
+      setSuccessMessage("");
       return;
     }
 
     try {
       setIsSaving(true);
-
       clearMessages();
 
       const isEditing =
-        Boolean(
-          editingRegionId,
-        );
+        Boolean(editingRegionId);
 
-      const url =
-        isEditing
-          ? `/api/regions/${editingRegionId}`
-          : "/api/regions";
+      const url = isEditing
+        ? `/api/regions/${editingRegionId}`
+        : "/api/regions";
 
-      const method =
-        isEditing
-          ? "PATCH"
-          : "POST";
+      const method = isEditing
+        ? "PATCH"
+        : "POST";
 
       const payload = {
-        name:
-          form.name.trim(),
-
+        name: form.name.trim(),
         chineseName:
           form.chineseName.trim(),
-
-        pinyin:
-          form.pinyin.trim(),
-
-        slug:
-          createSlug(
-            form.slug,
-          ),
-
+        pinyin: form.pinyin.trim(),
+        slug: createSlug(form.slug),
         geography:
           form.geography.trim(),
-
         culture:
           form.culture.trim(),
-
         landmark:
           form.landmark.trim(),
-
-        mapX:
-          Number(
-            form.mapX,
+        exploreInfo:
+          form.exploreInfo.trim(),
+        exploreQuestions:
+          JSON.parse(
+            form.exploreQuestionsJson || "[]",
           ),
-
-        mapY:
-          Number(
-            form.mapY,
-          ),
-
+        mapX: Number(form.mapX),
+        mapY: Number(form.mapY),
         flightOrder:
-          Number(
-            form.flightOrder,
-          ),
-
-        color:
-          form.color,
-
-        isActive:
-          form.isActive,
+          Number(form.flightOrder),
+        color: form.color,
+        isActive: form.isActive,
       };
 
       const response =
-        await fetch(
-          url,
-          {
-            method,
-
-            credentials:
-              "include",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-
-              Accept:
-                "application/json",
-            },
-
-            body:
-              JSON.stringify(
-                payload,
-              ),
+        await fetch(url, {
+          method,
+          credentials: "include",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Accept:
+              "application/json",
           },
-        );
+          body:
+            JSON.stringify(payload),
+        });
 
       const result =
-        await readResponse(
-          response,
-        );
+        await readResponse(response);
 
       if (
-        response.status ===
-          401 ||
-        response.status ===
-          403
+        response.status === 401 ||
+        response.status === 403
       ) {
-        setIsAuthorized(
-          false,
-        );
+        setIsAuthorized(false);
 
         throw new Error(
           result.message ||
@@ -980,8 +885,7 @@ export default function AdminRegionsPage() {
 
       if (
         !response.ok ||
-        result.success !==
-          true
+        result.success !== true
       ) {
         throw new Error(
           result.message ||
@@ -998,9 +902,7 @@ export default function AdminRegionsPage() {
             : "Đã thêm tỉnh thành công."),
       );
 
-      setEditingRegionId(
-        null,
-      );
+      setEditingRegionId(null);
 
       const loadedRegions =
         await loadRegions();
@@ -1019,8 +921,7 @@ export default function AdminRegionsPage() {
       );
 
       setErrorMessage(
-        error instanceof
-        Error
+        error instanceof Error
           ? error.message
           : "Không thể lưu tỉnh.",
       );
@@ -1032,25 +933,20 @@ export default function AdminRegionsPage() {
   /**
    * Ẩn / kích hoạt tỉnh.
    *
-   * QUAN TRỌNG:
    * Không dùng DELETE để ẩn.
    * Luôn PATCH isActive.
    */
   async function toggleRegionStatus(
     region: RegionItem,
   ) {
-    if (
-      processingRegionId
-    ) {
+    if (processingRegionId) {
       return;
     }
 
     const nextStatus =
       !region.isActive;
 
-    if (
-      region.isActive
-    ) {
+    if (region.isActive) {
       const confirmed =
         window.confirm(
           `Bạn có chắc muốn ẩn tỉnh "${region.name}" khỏi trò chơi không?`,
@@ -1062,52 +958,35 @@ export default function AdminRegionsPage() {
     }
 
     try {
-      setProcessingRegionId(
-        region.id,
-      );
-
+      setProcessingRegionId(region.id);
       clearMessages();
 
       const response =
         await fetch(
           `/api/regions/${region.id}`,
           {
-            method:
-              "PATCH",
-
-            credentials:
-              "include",
-
+            method: "PATCH",
+            credentials: "include",
             headers: {
               "Content-Type":
                 "application/json",
-
               Accept:
                 "application/json",
             },
-
-            body:
-              JSON.stringify({
-                isActive:
-                  nextStatus,
-              }),
+            body: JSON.stringify({
+              isActive: nextStatus,
+            }),
           },
         );
 
       const result =
-        await readResponse(
-          response,
-        );
+        await readResponse(response);
 
       if (
-        response.status ===
-          401 ||
-        response.status ===
-          403
+        response.status === 401 ||
+        response.status === 403
       ) {
-        setIsAuthorized(
-          false,
-        );
+        setIsAuthorized(false);
 
         throw new Error(
           result.message ||
@@ -1117,8 +996,7 @@ export default function AdminRegionsPage() {
 
       if (
         !response.ok ||
-        result.success !==
-          true
+        result.success !== true
       ) {
         throw new Error(
           result.message ||
@@ -1133,34 +1011,22 @@ export default function AdminRegionsPage() {
             : "Đã ẩn tỉnh."),
       );
 
-      setRegions(
-        (previous) =>
-          previous.map(
-            (item) =>
-              item.id ===
-              region.id
-                ? {
-                    ...item,
-
-                    isActive:
-                      nextStatus,
-                  }
-                : item,
-          ),
+      setRegions((previous) =>
+        previous.map((item) =>
+          item.id === region.id
+            ? {
+                ...item,
+                isActive: nextStatus,
+              }
+            : item,
+        ),
       );
 
-      if (
-        editingRegionId ===
-        region.id
-      ) {
-        setForm(
-          (previous) => ({
-            ...previous,
-
-            isActive:
-              nextStatus,
-          }),
-        );
+      if (editingRegionId === region.id) {
+        setForm((previous) => ({
+          ...previous,
+          isActive: nextStatus,
+        }));
       }
     } catch (error) {
       console.error(
@@ -1169,15 +1035,12 @@ export default function AdminRegionsPage() {
       );
 
       setErrorMessage(
-        error instanceof
-        Error
+        error instanceof Error
           ? error.message
           : "Không thể cập nhật trạng thái tỉnh.",
       );
     } finally {
-      setProcessingRegionId(
-        null,
-      );
+      setProcessingRegionId(null);
     }
   }
 
@@ -1187,9 +1050,7 @@ export default function AdminRegionsPage() {
     const loadedRegions =
       await loadRegions();
 
-    if (
-      !editingRegionId
-    ) {
+    if (!editingRegionId) {
       setForm(
         createEmptyForm(
           getNextFlightOrder(
@@ -1205,9 +1066,7 @@ export default function AdminRegionsPage() {
       100,
       Math.max(
         0,
-        Number(
-          form.mapX,
-        ) || 0,
+        Number(form.mapX) || 0,
       ),
     );
 
@@ -1216,9 +1075,7 @@ export default function AdminRegionsPage() {
       100,
       Math.max(
         0,
-        Number(
-          form.mapY,
-        ) || 0,
+        Number(form.mapY) || 0,
       ),
     );
 
@@ -1334,9 +1191,7 @@ export default function AdminRegionsPage() {
                 {editingRegionId && (
                   <button
                     type="button"
-                    onClick={
-                      cancelEditing
-                    }
+                    onClick={cancelEditing}
                     className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold text-slate-300"
                   >
                     Hủy sửa
@@ -1345,9 +1200,7 @@ export default function AdminRegionsPage() {
               </div>
 
               <form
-                onSubmit={
-                  handleSubmit
-                }
+                onSubmit={handleSubmit}
                 className="space-y-5"
               >
 
@@ -1360,23 +1213,15 @@ export default function AdminRegionsPage() {
                     </span>
 
                     <input
-                      value={
-                        form.name
-                      }
-                      onChange={(
-                        event,
-                      ) =>
+                      value={form.name}
+                      onChange={(event) =>
                         handleNameChange(
-                          event
-                            .target
-                            .value,
+                          event.target.value,
                         )
                       }
                       placeholder="Bắc Kinh"
                       required
-                      className={
-                        inputClassName
-                      }
+                      className={inputClassName}
                     />
                   </label>
 
@@ -1386,24 +1231,16 @@ export default function AdminRegionsPage() {
                     </span>
 
                     <input
-                      value={
-                        form.chineseName
-                      }
-                      onChange={(
-                        event,
-                      ) =>
+                      value={form.chineseName}
+                      onChange={(event) =>
                         updateForm(
                           "chineseName",
-                          event
-                            .target
-                            .value,
+                          event.target.value,
                         )
                       }
                       placeholder="北京"
                       required
-                      className={
-                        inputClassName
-                      }
+                      className={inputClassName}
                     />
                   </label>
                 </div>
@@ -1417,24 +1254,16 @@ export default function AdminRegionsPage() {
                     </span>
 
                     <input
-                      value={
-                        form.pinyin
-                      }
-                      onChange={(
-                        event,
-                      ) =>
+                      value={form.pinyin}
+                      onChange={(event) =>
                         updateForm(
                           "pinyin",
-                          event
-                            .target
-                            .value,
+                          event.target.value,
                         )
                       }
                       placeholder="Běijīng"
                       required
-                      className={
-                        inputClassName
-                      }
+                      className={inputClassName}
                     />
                   </label>
 
@@ -1444,26 +1273,18 @@ export default function AdminRegionsPage() {
                     </span>
 
                     <input
-                      value={
-                        form.slug
-                      }
-                      onChange={(
-                        event,
-                      ) =>
+                      value={form.slug}
+                      onChange={(event) =>
                         updateForm(
                           "slug",
                           createSlug(
-                            event
-                              .target
-                              .value,
+                            event.target.value,
                           ),
                         )
                       }
                       placeholder="bac-kinh"
                       required
-                      className={
-                        inputClassName
-                      }
+                      className={inputClassName}
                     />
                   </label>
                 </div>
@@ -1476,26 +1297,81 @@ export default function AdminRegionsPage() {
                   </span>
 
                   <textarea
-                    value={
-                      form.geography
-                    }
-                    onChange={(
-                      event,
-                    ) =>
+                    value={form.geography}
+                    onChange={(event) =>
                       updateForm(
                         "geography",
-                        event
-                          .target
-                          .value,
+                        event.target.value,
                       )
                     }
                     rows={3}
                     required
                     placeholder="Thông tin địa lý của tỉnh..."
-                    className={
-                      textAreaClassName
-                    }
+                    className={textAreaClassName}
                   />
+                </label>
+
+                {/* EXPLORE INFO */}
+
+                <label className="block rounded-2xl border border-cyan-200/10 bg-cyan-200/[.03] p-4">
+                  <span className="mb-2 block text-sm font-bold">
+                    Nội dung sticker tỉnh
+                  </span>
+
+                  <p className="mb-3 text-xs leading-5 text-slate-400">
+                    Nội dung này hiện trong bong bóng chat.
+                    Để trống sẽ tự dùng phần địa lý, văn hóa
+                    và địa danh bên trên.
+                  </p>
+
+                  <textarea
+                    value={form.exploreInfo}
+                    onChange={(event) =>
+                      updateForm(
+                        "exploreInfo",
+                        event.target.value,
+                      )
+                    }
+                    rows={4}
+                    placeholder="Viết nội dung giới thiệu ngắn về tỉnh..."
+                    className={textAreaClassName}
+                  />
+                </label>
+
+                {/* EXPLORE QUIZ QUESTIONS */}
+
+                <label className="block rounded-2xl border border-amber-200/10 bg-amber-200/[.03] p-4">
+                  <span className="mb-2 block text-sm font-bold">
+                    Câu hỏi sticker trắc nghiệm
+                  </span>
+
+                  <p className="mb-3 text-xs leading-5 text-slate-400">
+                    Nhập danh sách JSON. Mỗi câu có{" "}
+                    <code>question</code>, đúng 4 mục{" "}
+                    <code>options</code>,{" "}
+                    <code>correctIndex</code> (A=0, B=1,
+                    C=2, D=3) và <code>explanation</code>{" "}
+                    tùy chọn.
+                  </p>
+
+                  <textarea
+                    value={
+                      form.exploreQuestionsJson
+                    }
+                    onChange={(event) =>
+                      updateForm(
+                        "exploreQuestionsJson",
+                        event.target.value,
+                      )
+                    }
+                    rows={12}
+                    spellCheck={false}
+                    className={`${textAreaClassName} font-mono text-xs leading-5`}
+                  />
+
+                  <span className="mt-2 block text-[11px] text-slate-500">
+                    Ví dụ: [{"{"}"question":"Thủ đô của tỉnh?","options":["A","B","C","D"],"correctIndex":0,"explanation":"Giải thích đáp án"{"}"}]
+                  </span>
                 </label>
 
                 {/* CULTURE */}
@@ -1506,25 +1382,17 @@ export default function AdminRegionsPage() {
                   </span>
 
                   <textarea
-                    value={
-                      form.culture
-                    }
-                    onChange={(
-                      event,
-                    ) =>
+                    value={form.culture}
+                    onChange={(event) =>
                       updateForm(
                         "culture",
-                        event
-                          .target
-                          .value,
+                        event.target.value,
                       )
                     }
                     rows={3}
                     required
                     placeholder="Thông tin văn hóa..."
-                    className={
-                      textAreaClassName
-                    }
+                    className={textAreaClassName}
                   />
                 </label>
 
@@ -1536,25 +1404,17 @@ export default function AdminRegionsPage() {
                   </span>
 
                   <textarea
-                    value={
-                      form.landmark
-                    }
-                    onChange={(
-                      event,
-                    ) =>
+                    value={form.landmark}
+                    onChange={(event) =>
                       updateForm(
                         "landmark",
-                        event
-                          .target
-                          .value,
+                        event.target.value,
                       )
                     }
                     rows={3}
                     required
                     placeholder="Ví dụ: Vạn Lý Trường Thành..."
-                    className={
-                      textAreaClassName
-                    }
+                    className={textAreaClassName}
                   />
                 </label>
 
@@ -1571,22 +1431,14 @@ export default function AdminRegionsPage() {
                       min="0"
                       max="100"
                       step="0.01"
-                      value={
-                        form.mapX
-                      }
-                      onChange={(
-                        event,
-                      ) =>
+                      value={form.mapX}
+                      onChange={(event) =>
                         updateForm(
                           "mapX",
-                          event
-                            .target
-                            .value,
+                          event.target.value,
                         )
                       }
-                      className={
-                        inputClassName
-                      }
+                      className={inputClassName}
                     />
                   </label>
 
@@ -1600,22 +1452,14 @@ export default function AdminRegionsPage() {
                       min="0"
                       max="100"
                       step="0.01"
-                      value={
-                        form.mapY
-                      }
-                      onChange={(
-                        event,
-                      ) =>
+                      value={form.mapY}
+                      onChange={(event) =>
                         updateForm(
                           "mapY",
-                          event
-                            .target
-                            .value,
+                          event.target.value,
                         )
                       }
-                      className={
-                        inputClassName
-                      }
+                      className={inputClassName}
                     />
                   </label>
                 </div>
@@ -1634,40 +1478,29 @@ export default function AdminRegionsPage() {
                   </div>
 
                   <div
-                    onClick={
-                      handlePositionClick
-                    }
+                    onClick={handlePositionClick}
                     className="relative h-64 cursor-crosshair overflow-hidden rounded-2xl border border-emerald-300/20 bg-[#061a29]"
                   >
                     <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:10%_10%]" />
 
-                    {regions.map(
-                      (region) => (
-                        <span
-                          key={
-                            region.id
-                          }
-                          title={
-                            region.name
-                          }
-                          className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/80"
-                          style={{
-                            left: `${region.mapX}%`,
-
-                            top: `${region.mapY}%`,
-
-                            backgroundColor:
-                              region.color,
-                          }}
-                        />
-                      ),
-                    )}
+                    {regions.map((region) => (
+                      <span
+                        key={region.id}
+                        title={region.name}
+                        className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/80"
+                        style={{
+                          left: `${region.mapX}%`,
+                          top: `${region.mapY}%`,
+                          backgroundColor:
+                            region.color,
+                        }}
+                      />
+                    ))}
 
                     <div
                       className="absolute -translate-x-1/2 -translate-y-1/2"
                       style={{
                         left: `${mapX}%`,
-
                         top: `${mapY}%`,
                       }}
                     >
@@ -1680,8 +1513,7 @@ export default function AdminRegionsPage() {
                       />
 
                       <strong className="absolute left-1/2 top-7 -translate-x-1/2 whitespace-nowrap rounded-lg bg-black/75 px-2 py-1 text-xs">
-                        {form.name ||
-                          "Tỉnh mới"}
+                        {form.name || "Tỉnh mới"}
                       </strong>
                     </div>
                   </div>
@@ -1698,22 +1530,14 @@ export default function AdminRegionsPage() {
                     <input
                       type="number"
                       min="0"
-                      value={
-                        form.flightOrder
-                      }
-                      onChange={(
-                        event,
-                      ) =>
+                      value={form.flightOrder}
+                      onChange={(event) =>
                         updateForm(
                           "flightOrder",
-                          event
-                            .target
-                            .value,
+                          event.target.value,
                         )
                       }
-                      className={
-                        inputClassName
-                      }
+                      className={inputClassName}
                     />
                   </label>
 
@@ -1724,17 +1548,11 @@ export default function AdminRegionsPage() {
 
                     <input
                       type="color"
-                      value={
-                        form.color
-                      }
-                      onChange={(
-                        event,
-                      ) =>
+                      value={form.color}
+                      onChange={(event) =>
                         updateForm(
                           "color",
-                          event
-                            .target
-                            .value,
+                          event.target.value,
                         )
                       }
                       className="h-12 w-full cursor-pointer rounded-xl bg-[#0d2c40] p-1"
@@ -1752,20 +1570,14 @@ export default function AdminRegionsPage() {
                           ? "active"
                           : "inactive"
                       }
-                      onChange={(
-                        event,
-                      ) =>
+                      onChange={(event) =>
                         updateForm(
                           "isActive",
-                          event
-                            .target
-                            .value ===
+                          event.target.value ===
                             "active",
                         )
                       }
-                      className={
-                        inputClassName
-                      }
+                      className={inputClassName}
                     >
                       <option value="active">
                         Hoạt động
@@ -1788,8 +1600,7 @@ export default function AdminRegionsPage() {
 
                 {successMessage && (
                   <div className="rounded-xl border border-emerald-300/25 bg-emerald-300/10 p-4 text-sm font-bold text-emerald-100">
-                    ✓{" "}
-                    {successMessage}
+                    ✓ {successMessage}
                   </div>
                 )}
 
@@ -1797,9 +1608,7 @@ export default function AdminRegionsPage() {
 
                 <button
                   type="submit"
-                  disabled={
-                    isSaving
-                  }
+                  disabled={isSaving}
                   className="min-h-14 w-full rounded-2xl bg-gradient-to-r from-emerald-300 to-teal-300 px-6 font-black text-[#052d31] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isSaving
@@ -1828,15 +1637,11 @@ export default function AdminRegionsPage() {
                 <p className="m-0 text-sm text-slate-400">
                   Hiển thị{" "}
                   <strong className="text-white">
-                    {
-                      filteredRegions.length
-                    }
+                    {filteredRegions.length}
                   </strong>{" "}
                   /{" "}
                   <strong className="text-white">
-                    {
-                      regions.length
-                    }
+                    {regions.length}
                   </strong>{" "}
                   tỉnh
                 </p>
@@ -1847,40 +1652,24 @@ export default function AdminRegionsPage() {
               <div className="mb-6 grid gap-3 md:grid-cols-[1fr_190px_auto]">
                 <input
                   type="search"
-                  value={
-                    searchText
-                  }
-                  onChange={(
-                    event,
-                  ) =>
+                  value={searchText}
+                  onChange={(event) =>
                     setSearchText(
-                      event
-                        .target
-                        .value,
+                      event.target.value,
                     )
                   }
                   placeholder="Tìm tên tỉnh, pinyin, slug..."
-                  className={
-                    inputClassName
-                  }
+                  className={inputClassName}
                 />
 
                 <select
-                  value={
-                    statusFilter
-                  }
-                  onChange={(
-                    event,
-                  ) =>
+                  value={statusFilter}
+                  onChange={(event) =>
                     setStatusFilter(
-                      event
-                        .target
-                        .value as StatusFilter,
+                      event.target.value as StatusFilter,
                     )
                   }
-                  className={
-                    inputClassName
-                  }
+                  className={inputClassName}
                 >
                   <option value="all">
                     Tất cả trạng thái
@@ -1900,9 +1689,7 @@ export default function AdminRegionsPage() {
                   onClick={() =>
                     void refreshRegions()
                   }
-                  disabled={
-                    isLoading
-                  }
+                  disabled={isLoading}
                   className="min-h-12 rounded-xl border border-white/10 bg-white/5 px-5 font-bold transition hover:bg-white/10 disabled:opacity-50"
                 >
                   {isLoading
@@ -1923,8 +1710,7 @@ export default function AdminRegionsPage() {
                     </p>
                   </div>
                 </div>
-              ) : filteredRegions.length ===
-                0 ? (
+              ) : filteredRegions.length === 0 ? (
                 <div className="grid min-h-72 place-items-center rounded-2xl border border-dashed border-white/10 text-center text-slate-400">
                   <div>
                     <div className="text-5xl">
@@ -1946,9 +1732,7 @@ export default function AdminRegionsPage() {
                   {filteredRegions.map(
                     (region) => (
                       <article
-                        key={
-                          region.id
-                        }
+                        key={region.id}
                         className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b2a3d]"
                       >
                         <div
@@ -1963,26 +1747,16 @@ export default function AdminRegionsPage() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <h3 className="m-0 truncate text-xl font-black">
-                                {
-                                  region.name
-                                }
+                                {region.name}
                               </h3>
 
                               <p className="mb-0 mt-1 text-sm text-amber-200">
-                                {
-                                  region.chineseName
-                                }{" "}
-                                ·{" "}
-                                {
-                                  region.pinyin
-                                }
+                                {region.chineseName} ·{" "}
+                                {region.pinyin}
                               </p>
 
                               <p className="mt-1 truncate text-xs text-slate-500">
-                                /
-                                {
-                                  region.slug
-                                }
+                                /{region.slug}
                               </p>
                             </div>
 
@@ -2006,9 +1780,7 @@ export default function AdminRegionsPage() {
                               </small>
 
                               <strong>
-                                {
-                                  region.flightOrder
-                                }
+                                {region.flightOrder}
                               </strong>
                             </div>
 
@@ -2018,9 +1790,7 @@ export default function AdminRegionsPage() {
                               </small>
 
                               <strong>
-                                {
-                                  region.mapX
-                                }
+                                {region.mapX}
                               </strong>
                             </div>
 
@@ -2030,17 +1800,13 @@ export default function AdminRegionsPage() {
                               </small>
 
                               <strong>
-                                {
-                                  region.mapY
-                                }
+                                {region.mapY}
                               </strong>
                             </div>
                           </div>
 
                           <p className="mb-0 mt-4 line-clamp-2 text-sm leading-6 text-slate-400">
-                            {
-                              region.geography
-                            }
+                            {region.geography}
                           </p>
 
                           <div className="mt-5 grid grid-cols-2 gap-2">
@@ -2051,9 +1817,7 @@ export default function AdminRegionsPage() {
                                 null
                               }
                               onClick={() =>
-                                startEditing(
-                                  region,
-                                )
+                                startEditing(region)
                               }
                               className="min-h-11 rounded-xl border border-blue-300/20 bg-blue-300/10 text-sm font-bold text-blue-200 disabled:opacity-50"
                             >

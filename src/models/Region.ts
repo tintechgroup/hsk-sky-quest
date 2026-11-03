@@ -9,6 +9,14 @@ import type {
   Model,
 } from "mongoose";
 
+export interface ExploreQuestionData {
+  id: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation?: string;
+}
+
 export interface RegionData {
   name: string;
   chineseName: string;
@@ -18,6 +26,9 @@ export interface RegionData {
   geography: string;
   culture: string;
   landmark: string;
+
+  exploreInfo: string;
+  exploreQuestions: ExploreQuestionData[];
 
   /*
    * Vị trí trên bản đồ theo phần trăm.
@@ -85,6 +96,44 @@ const regionSchema =
         type: String,
         required: true,
         trim: true,
+      },
+
+      exploreInfo: {
+        type: String,
+        default: "",
+        trim: true,
+      },
+
+      exploreQuestions: {
+        type: [
+          {
+            id: {
+              type: String,
+              required: true,
+            },
+            question: {
+              type: String,
+              required: true,
+              trim: true,
+            },
+            options: {
+              type: [String],
+              required: true,
+            },
+            correctIndex: {
+              type: Number,
+              required: true,
+              min: 0,
+              max: 3,
+            },
+            explanation: {
+              type: String,
+              default: "",
+              trim: true,
+            },
+          },
+        ],
+        default: [],
       },
 
       mapX: {
