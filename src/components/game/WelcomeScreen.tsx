@@ -89,7 +89,7 @@ export default function WelcomeScreen({
 
           <div className="min-w-0">
             <strong className="block truncate text-sm font-black tracking-wide text-white sm:text-base">
-              HSK SKY QUEST
+              学霸，你好！
             </strong>
 
             <span className="block text-[9px] font-black tracking-[0.14em] text-emerald-300 sm:text-[10px]">
@@ -131,7 +131,7 @@ export default function WelcomeScreen({
           <h1 className="max-w-3xl text-[34px] font-black leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl sm:leading-[1.05] lg:text-6xl">
             Chào mừng bạn đến với{" "}
             <span className="mt-1 block bg-gradient-to-r from-amber-200 via-yellow-300 to-orange-300 bg-clip-text text-transparent sm:mt-2">
-              HSK Sky Quest
+              学霸，你好！
             </span>
           </h1>
 
