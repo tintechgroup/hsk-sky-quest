@@ -35,9 +35,12 @@ interface LootScreenProps {
   onRestart: () => void;
 }
 
+type GameLanguage = "vi" | "zh";
+
 type LootPhase =
   | "loot"
   | "matchmaking"
+  | "intro"
   | "battle";
 
 type InventoryKey =
@@ -248,6 +251,9 @@ export default function LootScreen({
   const [phase, setPhase] =
     useState<LootPhase>("loot");
 
+  const [language, setLanguage] =
+    useState<GameLanguage>("vi");
+
   const [inventory, setInventory] =
     useState<Inventory>({
       ...EMPTY_INVENTORY,
@@ -410,7 +416,7 @@ export default function LootScreen({
       normalizedQuestions.slice(0, 3),
     );
 
-    setPhase("battle");
+    setPhase("intro");
   }
 
   function cancelMatchmaking() {
@@ -440,6 +446,75 @@ export default function LootScreen({
   }
 
   /*
+   * Giới thiệu cốt truyện trước khi mở câu hỏi.
+   */
+  if (
+    phase === "intro" &&
+    match &&
+    battleQuestions.length > 0
+  ) {
+    const isChinese = language === "zh";
+
+    return (
+      <main className="relative isolate grid min-h-[calc(100svh-2rem)] place-items-center overflow-hidden rounded-[28px] border border-amber-100/20 bg-[#27170f] p-4 text-white shadow-2xl sm:p-8">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_18%_15%,rgba(251,146,60,.55),transparent_34%),radial-gradient(ellipse_at_82%_18%,rgba(239,68,68,.35),transparent_32%),radial-gradient(ellipse_at_50%_100%,rgba(120,53,15,.78),transparent_55%),linear-gradient(145deg,#3b2114,#101b26_72%)]" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-32 bg-[linear-gradient(180deg,rgba(15,23,42,.2),transparent)]" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 flex items-end justify-around overflow-hidden text-5xl opacity-50 sm:text-7xl">
+          <span>🏮</span><span>🍜</span><span>🦞</span><span>🥢</span><span>🏮</span>
+        </div>
+
+        <section className="w-full max-w-3xl rounded-[28px] border border-white/25 bg-slate-950/45 p-5 shadow-[0_30px_90px_rgba(0,0,0,.42)] backdrop-blur-2xl sm:p-9">
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <span className="rounded-full border border-amber-100/25 bg-amber-100/10 px-3 py-1.5 text-[10px] font-black tracking-[.15em] text-amber-100 sm:text-xs">
+              {isChinese ? "湖北 · 武汉 · 户部巷" : "HỒ BẮC · VŨ HÁN · HỘ BỘ HẠNG"}
+            </span>
+            <div className="flex shrink-0 rounded-full border border-white/20 bg-black/25 p-1 text-xs font-bold">
+              <button type="button" onClick={() => setLanguage("vi")} aria-pressed={!isChinese} className={`rounded-full px-3 py-1.5 ${!isChinese ? "bg-amber-300 text-slate-950" : "text-white/75"}`}>VI</button>
+              <button type="button" onClick={() => setLanguage("zh")} aria-pressed={isChinese} className={`rounded-full px-3 py-1.5 ${isChinese ? "bg-amber-300 text-slate-950" : "text-white/75"}`}>中文</button>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <div className="mx-auto mb-5 grid size-20 place-items-center rounded-3xl border border-amber-100/25 bg-amber-200/10 text-5xl shadow-[0_0_50px_rgba(251,191,36,.18)]">🦞</div>
+            <p className="text-xs font-black tracking-[.22em] text-amber-200">{isChinese ? "欢迎来到游戏" : "CHÀO MỪNG ĐẾN VỚI TRÒ CHƠI"}</p>
+            <h1 className="mx-auto mt-3 max-w-2xl text-2xl font-black leading-tight sm:text-4xl">
+              {isChinese ? "欢迎来到户部巷龙虾摊！" : "CHÀO MỪNG ĐẾN VỚI SẠP TÔM HÙM ĐẤT HỘ BỘ HẠNG!"}
+            </h1>
+            <p className="mt-5 text-sm leading-7 text-white/85 sm:text-base sm:leading-8">
+              {isChinese
+                ? "你将在湖北省武汉市户部巷经营一家小龙虾摊。这里街巷热闹，食客络绎不绝；他们会用湖北的文化、历史、教育、经济与地理知识向你发起挑战。准备好接招了吗？"
+                : "Bạn sẽ điều hành một sạp tôm hùm đất tại Hộ Bộ Hạng, thành phố Vũ Hán, tỉnh Hồ Bắc. Con phố luôn nhộn nhịp, khách ghé ăn không ngớt và sẵn sàng thử thách kiến thức của bạn về văn hóa, lịch sử, giáo dục, kinh tế và địa lý Hồ Bắc."}
+            </p>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-emerald-200/20 bg-emerald-300/10 p-4">
+              <div className="text-2xl">✅</div>
+              <strong className="mt-2 block text-sm text-emerald-100">{isChinese ? "答对" : "Trả lời đúng"}</strong>
+              <p className="mt-1 text-sm leading-6 text-white/75">{isChinese ? "卖出一份龙虾，收入 10 元。" : "Bán được 1 phần tôm, thu về 10 nhân dân tệ."}</p>
+            </div>
+            <div className="rounded-2xl border border-rose-200/20 bg-rose-300/10 p-4">
+              <div className="text-2xl">🚶</div>
+              <strong className="mt-2 block text-sm text-rose-100">{isChinese ? "答错" : "Trả lời sai"}</strong>
+              <p className="mt-1 text-sm leading-6 text-white/75">{isChinese ? "顾客离开，错过这笔生意。" : "Khách rời đi, bạn bỏ lỡ lượt bán hàng đó."}</p>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-amber-100/20 bg-amber-200/10 p-4 text-center">
+            <p className="text-sm font-bold leading-6 text-amber-50 sm:text-base">
+              {isChinese ? "准备好开张了吗？🔥 系好围裙，迎接第一位顾客！" : "Bạn đã sẵn sàng mở hàng chưa? 🔥 Kéo tạp dề lên, đón vị khách đầu tiên nào!"}
+            </p>
+          </div>
+
+          <button type="button" onClick={() => setPhase("battle")} className="mt-6 min-h-14 w-full rounded-2xl bg-gradient-to-r from-amber-300 via-orange-300 to-rose-300 px-5 font-black text-[#321b0c] shadow-[0_14px_35px_rgba(251,146,60,.25)] transition hover:-translate-y-0.5">
+            {isChinese ? "开始营业 · 开始答题 →" : "MỞ SẠP · BẮT ĐẦU THỬ THÁCH →"}
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  /*
    * Màn hình trận đấu.
    */
   if (
@@ -457,6 +532,7 @@ export default function LootScreen({
   region={region}
   match={match}
   initialInventory={inventory}
+  language={language}
   onRestart={onRestart}
 />
       </BattleQuestionsProvider>
