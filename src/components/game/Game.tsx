@@ -1365,7 +1365,7 @@ export default function Game() {
 
                 <div>
                   <strong>
-                    HSK SKY QUEST
+                    学霸，你好！
                   </strong>
 
                   <span>
