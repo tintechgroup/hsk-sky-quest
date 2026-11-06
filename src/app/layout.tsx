@@ -43,31 +43,31 @@ export const metadata: Metadata = {
 
   title: {
     default:
-      "HSK Sky Quest - Trò chơi học tiếng Trung",
+      "学霸，你好！ - Trò chơi học tiếng Trung",
     template:
-      "%s | HSK Sky Quest",
+      "%s | 学霸，你好！",
   },
 
   description:
-    "HSK Sky Quest là trò chơi học tiếng Trung, luyện câu hỏi HSK, ghép trận với người chơi khác và theo dõi lịch sử thi đấu.",
+    "学霸，你好！ là trò chơi học tiếng Trung, luyện câu hỏi HSK, ghép trận với người chơi khác và theo dõi lịch sử thi đấu.",
 
-  applicationName: "HSK Sky Quest",
+  applicationName: "学霸，你好！",
 
   authors: [
     {
-      name: "HSK Sky Quest",
+      name: "学霸，你好！",
     },
   ],
 
-  creator: "HSK Sky Quest",
-  publisher: "HSK Sky Quest",
+  creator: "学霸，你好！",
+  publisher: "学霸，你好！",
 
   keywords: [
     "HSK",
     "học tiếng Trung",
     "luyện thi HSK",
     "trò chơi HSK",
-    "HSK Sky Quest",
+    "学霸，你好！",
     "thi đấu tiếng Trung",
     "câu hỏi tiếng Trung",
     "học tiếng Trung online",
@@ -81,9 +81,9 @@ export const metadata: Metadata = {
     type: "website",
     locale: "vi_VN",
     url: "/",
-    siteName: "HSK Sky Quest",
+    siteName: "学霸，你好！",
     title:
-      "HSK Sky Quest - Trò chơi học tiếng Trung",
+      "学霸，你好！ - Trò chơi học tiếng Trung",
     description:
       "Luyện câu hỏi HSK, tham gia ghép trận và theo dõi lịch sử thi đấu.",
   },
@@ -91,7 +91,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title:
-      "HSK Sky Quest - Trò chơi học tiếng Trung",
+      "学霸，你好！ - Trò chơi học tiếng Trung",
     description:
       "Luyện câu hỏi HSK, tham gia ghép trận và theo dõi lịch sử thi đấu.",
   },
