@@ -34,6 +34,7 @@ interface TeamBattleScreenProps {
   region: Region;
   match: MatchmakingMatch;
   initialInventory: Inventory;
+  language?: "vi" | "zh";
   onRestart: () => void;
 }
 
@@ -102,6 +103,7 @@ export default function TeamBattleScreen({
   region,
   match,
   initialInventory,
+  language: initialLanguage = "vi",
   onRestart,
 }: TeamBattleScreenProps) {
   const {
@@ -115,6 +117,9 @@ export default function TeamBattleScreen({
     setLiveMatch,
   ] =
     useState(match);
+
+  const [language, setLanguage] =
+    useState<"vi" | "zh">(initialLanguage);
 
   const [
     stage,
@@ -306,6 +311,8 @@ export default function TeamBattleScreen({
     "blue"
       ? correctAnswers
       : 0);
+
+  const earnedYuan = correctAnswers * 10;
 
   /*
    * ========================================
@@ -1125,7 +1132,7 @@ export default function TeamBattleScreen({
    * NEXT QUESTION
    * ========================================
    */
-  function nextQuestion() {
+  const nextQuestion = useCallback(() => {
     if (
       !answered
     ) {
@@ -1194,7 +1201,22 @@ export default function TeamBattleScreen({
     setElapsedThisQuestion(
       0,
     );
-  }
+  }, [
+    answered,
+    battleQuestions.length,
+    questionIndex,
+    submitBattleResult,
+  ]);
+
+  useEffect(() => {
+    if (!answered) return;
+
+    const timer = window.setTimeout(() => {
+      nextQuestion();
+    }, 950);
+
+    return () => window.clearTimeout(timer);
+  }, [answered, nextQuestion]);
 
   /*
    * ========================================
@@ -1354,6 +1376,10 @@ export default function TeamBattleScreen({
               liveMatch.mode
             }
           </small>
+          <div className="mt-1 flex justify-center gap-1">
+            <button type="button" onClick={() => setLanguage("vi")} aria-pressed={language === "vi"} className={`rounded-full px-2 py-1 text-[9px] font-black ${language === "vi" ? "bg-amber-300 text-slate-950" : "bg-white/10 text-white/70"}`}>VI</button>
+            <button type="button" onClick={() => setLanguage("zh")} aria-pressed={language === "zh"} className={`rounded-full px-2 py-1 text-[9px] font-black ${language === "zh" ? "bg-amber-300 text-slate-950" : "bg-white/10 text-white/70"}`}>中文</button>
+          </div>
 
         </div>
 
@@ -1401,10 +1427,9 @@ export default function TeamBattleScreen({
 
           <span className="text-[11px] font-bold text-slate-400 sm:text-xs">
 
-            Điểm cá nhân:{" "}
-            {
-              correctAnswers
-            }
+            {language === "zh" ? "个人得分：" : "Điểm cá nhân: "}
+            {correctAnswers}
+            <span className="ml-2 rounded-full border border-amber-300/20 bg-amber-300/10 px-2 py-1 text-amber-100">🦞 ¥{earnedYuan}</span>
 
           </span>
 
@@ -1446,14 +1471,20 @@ export default function TeamBattleScreen({
 
       </div>
 
+      {answered ? (
+        <div role="status" aria-live="assertive" className="grid min-h-[300px] place-items-center bg-white/[0.035] sm:min-h-[390px]">
+          <span className={`animate-bounce text-8xl drop-shadow-[0_0_35px_rgba(255,255,255,.35)] sm:text-9xl ${selectedIsCorrect && !timedOut ? "" : "grayscale"}`} aria-label={timedOut ? (language === "zh" ? "时间到" : "Hết giờ") : selectedIsCorrect ? (language === "zh" ? "回答正确" : "Trả lời đúng") : (language === "zh" ? "回答错误" : "Trả lời sai")}>{timedOut || !selectedIsCorrect ? "😢" : "🎉"}</span>
+        </div>
+      ) : (
+        <>
       {/* QUESTION */}
 
-      <article className="p-4 sm:p-6 lg:p-9">
+      <article className="m-3 rounded-[24px] border border-white/20 bg-white/[0.075] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.12),0_16px_50px_rgba(0,0,0,.18)] backdrop-blur-2xl sm:m-5 sm:p-6 lg:m-7 lg:p-9">
 
         <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
 
           <span className="rounded-full bg-emerald-300/10 px-3 py-1 text-[9px] font-black text-emerald-300">
-            CÂU HỎI CHUNG
+            {language === "zh" ? "公共问题" : "CÂU HỎI CHUNG"}
           </span>
 
           <span className="rounded-full bg-blue-300/10 px-3 py-1 text-[9px] font-black text-blue-300">
@@ -1485,7 +1516,7 @@ export default function TeamBattleScreen({
             </p>
           ) : (
             <p className="text-xs text-slate-500 sm:text-sm">
-              Dùng Kính phiên âm để hiển thị Pinyin
+              {language === "zh" ? "使用拼音镜查看拼音" : "Dùng Kính phiên âm để hiển thị Pinyin"}
             </p>
           )}
 
@@ -1593,7 +1624,7 @@ export default function TeamBattleScreen({
           <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4 text-amber-100">
 
             <strong>
-              💡 Gợi ý
+              {language === "zh" ? "💡 提示" : "💡 Gợi ý"}
             </strong>
 
             <p className="mt-1 text-sm leading-relaxed">
@@ -1613,11 +1644,11 @@ export default function TeamBattleScreen({
           <div className="mt-5 rounded-2xl border border-orange-300/30 bg-orange-300/10 p-4">
 
             <strong className="text-orange-200">
-              Đáp án chưa chính xác
+              {language === "zh" ? "答案不正确" : "Đáp án chưa chính xác"}
             </strong>
 
             <p className="mb-4 mt-2 text-sm text-slate-300">
-              Bạn có muốn dùng Thẻ hồi đáp để trả lời lại không?
+              {language === "zh" ? "要使用重答卡再试一次吗？" : "Bạn có muốn dùng Thẻ hồi đáp để trả lời lại không?"}
             </p>
 
             <div className="grid gap-2 sm:grid-cols-2">
@@ -1629,7 +1660,7 @@ export default function TeamBattleScreen({
                 }
                 className="min-h-12 rounded-xl bg-orange-300 px-4 font-black text-[#33220b]"
               >
-                🔄 Dùng thẻ
+                {language === "zh" ? "🔄 使用卡片" : "🔄 Dùng thẻ"}
               </button>
 
               <button
@@ -1639,7 +1670,7 @@ export default function TeamBattleScreen({
                 }
                 className="min-h-12 rounded-xl border border-white/10 bg-white/5 px-4 font-bold text-slate-300"
               >
-                Không sử dụng
+                {language === "zh" ? "不使用" : "Không sử dụng"}
               </button>
 
             </div>
@@ -1699,7 +1730,7 @@ export default function TeamBattleScreen({
           <div>
 
             <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">
-              Vật phẩm hỗ trợ
+              {language === "zh" ? "辅助道具" : "Vật phẩm hỗ trợ"}
             </span>
 
             <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
@@ -1726,7 +1757,7 @@ export default function TeamBattleScreen({
 
               <ItemButton
                 icon="💡"
-                name="Gợi ý"
+                name={language === "zh" ? "提示" : "Gợi ý"}
                 quantity={
                   inventory.hint
                 }
@@ -1773,7 +1804,7 @@ export default function TeamBattleScreen({
 
               <ItemButton
                 icon="🔄"
-                name="Trả lời lại"
+                name={language === "zh" ? "重答" : "Trả lời lại"}
                 quantity={
                   inventory.retry
                 }
@@ -1797,12 +1828,12 @@ export default function TeamBattleScreen({
             >
 
               {submitting
-                ? "Đang lưu kết quả..."
+                ? (language === "zh" ? "正在保存结果..." : "Đang lưu kết quả...")
                 : questionIndex >=
                     battleQuestions.length -
                       1
-                  ? "Hoàn thành trận đấu"
-                  : "Câu tiếp theo →"}
+                  ? (language === "zh" ? "完成比赛" : "Hoàn thành trận đấu")
+                  : (language === "zh" ? "下一题 →" : "Câu tiếp theo →")}
 
             </button>
           ) : (
@@ -1818,13 +1849,15 @@ export default function TeamBattleScreen({
               }
               className="min-h-12 w-full rounded-xl bg-gradient-to-r from-amber-300 to-orange-300 px-7 font-black text-[#382207] disabled:opacity-40 xl:w-auto"
             >
-              Xác nhận đáp án
+              {language === "zh" ? "确认答案" : "Xác nhận đáp án"}
             </button>
           )}
 
         </div>
 
       </footer>
+        </>
+      )}
 
     </section>
   );
