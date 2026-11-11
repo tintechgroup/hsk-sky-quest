@@ -8,6 +8,7 @@ import {
 } from "react";
 
 import GameBackButton from "@/components/game/GameBackButton";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 import type {
   HSKLevel,
@@ -336,6 +337,245 @@ const MODE_INFORMATION: Record<
   },
 };
 
+const MATCHMAKING_TEXT = {
+  vi: {
+    modeNames: {
+      "1v1": "Đấu 1 đối 1",
+      "3v3": "Đấu đội 3 đối 3",
+      "5v5": "Đại chiến 5 đối 5",
+      bot: "Đấu với máy",
+    },
+
+    modeDescriptions: {
+      "1v1": "Một người mỗi đội",
+      "3v3": "Ba người mỗi đội",
+      "5v5": "Năm người mỗi đội",
+      bot: "Một người đấu với một bot",
+    },
+
+    findingBots: "Đang chuẩn bị đối thủ máy...",
+    findingPlayers: "Đang tìm những người chơi phù hợp...",
+    starting: "Trận đấu đang bắt đầu...",
+    cancelledRoom: "Phòng đấu đã bị hủy. Bạn có thể tìm trận mới.",
+    fillingBots: "Đang thêm người chơi máy...",
+    botOffer: "Chưa đủ người chơi. Bạn có thể tiếp tục chờ hoặc thêm máy.",
+    creatingBot: "Đang tạo đối thủ máy...",
+    findingRoom: "Đang tìm phòng phù hợp...",
+    invalidSession: "Phiên đăng nhập không hợp lệ. Hãy đăng nhập lại.",
+    joinFailed: "Không thể tham gia phòng.",
+    missingRoom: "Máy chủ không trả về thông tin phòng đấu.",
+    joinedQueue: "Đã tham gia hàng chờ.",
+    queueJoinFailed: "Không thể tham gia hàng chờ.",
+    cannotJoin: "Chưa thể tham gia phòng đấu.",
+    expiredSession: "Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.",
+    updateFailed: "Không thể cập nhật phòng.",
+    roomGone: "Phòng đấu không còn tồn tại. Bạn có thể tìm lại trận mới.",
+    disconnected: "Mất kết nối với phòng.",
+    addBotFailed: "Không thể thêm người chơi máy.",
+    preparingMatch: "Đang chuẩn bị trận đấu...",
+    continueFailed: "Không thể tiếp tục chờ.",
+    continuing: "Tiếp tục tìm người chơi thật...",
+    leaveFailed: "Không thể rời phòng.",
+    retrying: "Đang thử lại...",
+    retry: "Thử lại",
+    backToMode: "Quay lại chọn chế độ",
+    preparingOpponent: "Đang chuẩn bị đối thủ",
+    findingOpponent: "Đang tìm người chơi",
+    roomStatus: "Trạng thái phòng",
+    errorTitle: "Không thể ghép trận",
+    offerBotsIn: "Đề nghị thêm máy sau",
+    canAddBots: "Có thể thêm người chơi máy",
+    ready: "Sẵn sàng",
+    connectionFilling: "Đang thêm người chơi máy",
+    connectionStarting: "Đang chuyển vào trận đấu",
+    connectionPolling: "Đang cập nhật phòng",
+    connectionLoading: "Đang kết nối máy chủ",
+    connectionConnected: "Tự động cập nhật mỗi 1 giây",
+    connectionNotJoined: "Chưa tham gia phòng",
+    redTeam: "Đội Đỏ",
+    blueTeam: "Đội Xanh",
+    teamPlayers: "người chơi",
+    findingPlayer: "Đang tìm người chơi",
+    emptySlot: "Vị trí còn trống",
+    cannotMatch: "Không thể ghép trận",
+    leaving: "Đang rời phòng...",
+    leaveQueue: "Rời hàng chờ",
+    botOfferLabel: "Chưa đủ người chơi",
+    botOfferTitle: "Thêm máy vào trận?",
+    botOfferDescription:
+      "Hiện chưa tìm đủ người chơi thật. Bạn có thể thêm người chơi máy để bắt đầu ngay hoặc tiếp tục chờ.",
+    processing: "Đang xử lý...",
+    playBots: "🤖 Đấu với máy",
+    continueWaiting: "👥 Tiếp tục chờ người thật",
+    botPlayer: "Người chơi máy",
+    humanPlayer: "Người chơi thật",
+    disconnectedPlayer: "Mất kết nối",
+    waiting: "Đang chờ",
+    teamVs: "đấu",
+    fallbackSeconds: "giây",
+  },
+
+  zh: {
+    modeNames: {
+      "1v1": "一对一对战",
+      "3v3": "三对三团队赛",
+      "5v5": "五对五大战",
+      bot: "人机对战",
+    },
+
+    modeDescriptions: {
+      "1v1": "每队一名玩家",
+      "3v3": "每队三名玩家",
+      "5v5": "每队五名玩家",
+      bot: "一名玩家对战一台电脑",
+    },
+
+    findingBots: "正在准备电脑对手...",
+    findingPlayers: "正在寻找合适的玩家...",
+    starting: "比赛即将开始...",
+    cancelledRoom: "比赛房间已取消，你可以重新匹配。",
+    fillingBots: "正在添加电脑玩家...",
+    botOffer: "玩家人数不足。你可以继续等待或添加电脑玩家。",
+    creatingBot: "正在创建电脑对手...",
+    findingRoom: "正在寻找合适的房间...",
+    invalidSession: "登录状态无效，请重新登录。",
+    joinFailed: "无法加入房间。",
+    missingRoom: "服务器未返回比赛房间信息。",
+    joinedQueue: "已加入等待队列。",
+    queueJoinFailed: "无法加入等待队列。",
+    cannotJoin: "暂时无法加入比赛房间。",
+    expiredSession: "登录已过期，请重新登录。",
+    updateFailed: "无法更新房间信息。",
+    roomGone: "比赛房间已不存在，你可以重新匹配。",
+    disconnected: "与房间的连接已断开。",
+    addBotFailed: "无法添加电脑玩家。",
+    preparingMatch: "正在准备比赛...",
+    continueFailed: "无法继续等待。",
+    continuing: "继续等待真实玩家...",
+    leaveFailed: "无法离开房间。",
+    retrying: "正在重试...",
+    retry: "重试",
+    backToMode: "返回选择模式",
+    preparingOpponent: "正在准备对手",
+    findingOpponent: "正在寻找玩家",
+    roomStatus: "房间状态",
+    errorTitle: "无法匹配比赛",
+    offerBotsIn: "后可添加电脑玩家",
+    canAddBots: "现在可以添加电脑玩家",
+    ready: "已准备",
+    connectionFilling: "正在添加电脑玩家",
+    connectionStarting: "正在进入比赛",
+    connectionPolling: "正在更新房间",
+    connectionLoading: "正在连接服务器",
+    connectionConnected: "每秒自动更新",
+    connectionNotJoined: "尚未加入房间",
+    redTeam: "红队",
+    blueTeam: "蓝队",
+    teamPlayers: "名玩家",
+    findingPlayer: "正在寻找玩家",
+    emptySlot: "空缺位置",
+    cannotMatch: "无法匹配比赛",
+    leaving: "正在离开房间...",
+    leaveQueue: "退出等待队列",
+    botOfferLabel: "玩家人数不足",
+    botOfferTitle: "添加电脑玩家？",
+    botOfferDescription:
+      "暂时没有足够的真实玩家。你可以添加电脑玩家立即开始，也可以继续等待。",
+    processing: "正在处理...",
+    playBots: "🤖 与电脑对战",
+    continueWaiting: "👥 继续等待真实玩家",
+    botPlayer: "电脑玩家",
+    humanPlayer: "真实玩家",
+    disconnectedPlayer: "已断开连接",
+    waiting: "等待中",
+    teamVs: "对战",
+    fallbackSeconds: "秒",
+  },
+} as const;
+
+type MatchmakingLanguage =
+  keyof typeof MATCHMAKING_TEXT;
+
+const KNOWN_MATCH_MESSAGES: Record<string, string> = {
+  "Đang chuẩn bị đối thủ máy...":
+    MATCHMAKING_TEXT.zh.findingBots,
+
+  "Đang tìm những người chơi phù hợp...":
+    MATCHMAKING_TEXT.zh.findingPlayers,
+
+  "Trận đấu đang bắt đầu...":
+    MATCHMAKING_TEXT.zh.starting,
+
+  "Phòng đấu đã bị hủy. Bạn có thể tìm trận mới.":
+    MATCHMAKING_TEXT.zh.cancelledRoom,
+
+  "Đang thêm người chơi máy...":
+    MATCHMAKING_TEXT.zh.fillingBots,
+
+  "Chưa đủ người chơi. Bạn có thể tiếp tục chờ hoặc thêm máy.":
+    MATCHMAKING_TEXT.zh.botOffer,
+
+  "Đang tạo đối thủ máy...":
+    MATCHMAKING_TEXT.zh.creatingBot,
+
+  "Đang tìm phòng phù hợp...":
+    MATCHMAKING_TEXT.zh.findingRoom,
+
+  "Phiên đăng nhập không hợp lệ. Hãy đăng nhập lại.":
+    MATCHMAKING_TEXT.zh.invalidSession,
+
+  "Không thể tham gia phòng.":
+    MATCHMAKING_TEXT.zh.joinFailed,
+
+  "Máy chủ không trả về thông tin phòng đấu.":
+    MATCHMAKING_TEXT.zh.missingRoom,
+
+  "Đã tham gia hàng chờ.":
+    MATCHMAKING_TEXT.zh.joinedQueue,
+
+  "Không thể tham gia hàng chờ.":
+    MATCHMAKING_TEXT.zh.queueJoinFailed,
+
+  "Chưa thể tham gia phòng đấu.":
+    MATCHMAKING_TEXT.zh.cannotJoin,
+
+  "Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.":
+    MATCHMAKING_TEXT.zh.expiredSession,
+
+  "Không thể cập nhật phòng.":
+    MATCHMAKING_TEXT.zh.updateFailed,
+
+  "Phòng đấu không còn tồn tại. Bạn có thể tìm lại trận mới.":
+    MATCHMAKING_TEXT.zh.roomGone,
+
+  "Mất kết nối với phòng.":
+    MATCHMAKING_TEXT.zh.disconnected,
+
+  "Không thể thêm người chơi máy.":
+    MATCHMAKING_TEXT.zh.addBotFailed,
+
+  "Đang chuẩn bị trận đấu...":
+    MATCHMAKING_TEXT.zh.preparingMatch,
+
+  "Không thể tiếp tục chờ.":
+    MATCHMAKING_TEXT.zh.continueFailed,
+
+  "Tiếp tục tìm người chơi thật...":
+    MATCHMAKING_TEXT.zh.continuing,
+
+  "Không thể rời phòng.":
+    MATCHMAKING_TEXT.zh.leaveFailed,
+};
+
+function localizeMatchMessage(
+  message: string,
+  language: MatchmakingLanguage,
+) {
+  return language === "zh"
+    ? KNOWN_MATCH_MESSAGES[message] ?? message
+    : message;
+}
+
 /*
  * ==========================================
  * COMPONENT
@@ -349,10 +589,27 @@ export default function MatchmakingScreen({
   onMatchReady,
   onCancel,
 }: MatchmakingScreenProps) {
-  const modeInformation =
-    MODE_INFORMATION[
-      mode
-    ];
+  const { language } = useLanguage();
+
+  const currentLanguage: MatchmakingLanguage =
+    language === "zh" ? "zh" : "vi";
+
+  const ui =
+    MATCHMAKING_TEXT[currentLanguage];
+
+  const localizedRegionName =
+    currentLanguage === "zh"
+      ? region.chineseName || region.name
+      : region.name;
+
+  const uiRef = useRef(ui);
+  uiRef.current = ui;
+
+  const modeInformation = {
+    ...MODE_INFORMATION[mode],
+    name: ui.modeNames[mode],
+    description: ui.modeDescriptions[mode],
+  };
 
   const [
     match,
@@ -391,10 +648,9 @@ export default function MatchmakingScreen({
     setStatusMessage,
   ] =
     useState(
-      mode ===
-        "bot"
-        ? "Đang chuẩn bị đối thủ máy..."
-        : "Đang tìm những người chơi phù hợp...",
+      mode === "bot"
+        ? ui.findingBots
+        : ui.findingPlayers,
     );
 
   const [
@@ -458,6 +714,7 @@ export default function MatchmakingScreen({
    * HANDLE MATCH DATA
    * ========================================
    */
+
   const handleMatchData =
     useCallback(
       (
@@ -494,7 +751,7 @@ export default function MatchmakingScreen({
           );
 
           setStatusMessage(
-            "Trận đấu đang bắt đầu...",
+            uiRef.current.starting,
           );
 
           if (
@@ -544,7 +801,7 @@ export default function MatchmakingScreen({
           );
 
           setError(
-            "Phòng đấu đã bị hủy. Bạn có thể tìm trận mới.",
+            uiRef.current.cancelledRoom,
           );
 
           return;
@@ -562,7 +819,7 @@ export default function MatchmakingScreen({
           );
 
           setStatusMessage(
-            "Đang thêm người chơi máy...",
+            uiRef.current.fillingBots,
           );
 
           return;
@@ -573,8 +830,7 @@ export default function MatchmakingScreen({
          * các mode PvP.
          */
         if (
-          mode !==
-            "bot" &&
+          mode !== "bot" &&
           matchData.status ===
             "waiting"
         ) {
@@ -583,14 +839,10 @@ export default function MatchmakingScreen({
             DEFAULT_FALLBACK_SECONDS;
 
           const serverAllowsBots =
-            matchData.canOfferBots ===
-              true ||
-            matchData.canFillBots ===
-              true ||
-            matchData.fallbackExpired ===
-              true ||
-            fallbackSeconds <=
-              0;
+            matchData.canOfferBots === true ||
+            matchData.canFillBots === true ||
+            matchData.fallbackExpired === true ||
+            fallbackSeconds <= 0;
 
           if (
             serverAllowsBots
@@ -600,7 +852,7 @@ export default function MatchmakingScreen({
             );
 
             setStatusMessage(
-              "Chưa đủ người chơi. Bạn có thể tiếp tục chờ hoặc thêm máy.",
+              uiRef.current.botOffer,
             );
           } else {
             setBotOfferVisible(
@@ -623,6 +875,7 @@ export default function MatchmakingScreen({
    * JOIN MATCH
    * ========================================
    */
+
   const joinMatch =
     useCallback(
       async () => {
@@ -644,68 +897,48 @@ export default function MatchmakingScreen({
         );
 
         setStatusMessage(
-          mode ===
-            "bot"
-            ? "Đang tạo đối thủ máy..."
-            : "Đang tìm phòng phù hợp...",
+          mode === "bot"
+            ? uiRef.current.creatingBot
+            : uiRef.current.findingRoom,
         );
 
         try {
-          /*
-           * Unified matchmaking API.
-           */
           const response =
             await fetch(
               "/api/matchmaking",
               {
-                method:
-                  "POST",
-
-                credentials:
-                  "include",
-
-                cache:
-                  "no-store",
+                method: "POST",
+                credentials: "include",
+                cache: "no-store",
 
                 headers: {
                   "Content-Type":
                     "application/json",
-
                   Accept:
                     "application/json",
                 },
 
-                body:
-                  JSON.stringify({
-                    action:
-                      "join",
-
-                    regionId:
-                      region.id,
-
-                    level,
-
-                    mode,
-                  }),
+                body: JSON.stringify({
+                  action: "join",
+                  regionId: region.id,
+                  level,
+                  mode,
+                }),
               },
             );
 
           const result =
             (await response
               .json()
-              .catch(
-                () =>
-                  null,
-              )) as
+              .catch(() => null)) as
               | MatchmakingResponse
               | null;
 
           if (
-            response.status ===
-            401
+            response.status === 401
           ) {
             throw new Error(
-              "Phiên đăng nhập không hợp lệ. Hãy đăng nhập lại.",
+              uiRef.current.invalidSession,
             );
           }
 
@@ -715,7 +948,7 @@ export default function MatchmakingScreen({
           ) {
             throw new Error(
               result?.message ||
-                "Không thể tham gia phòng.",
+                uiRef.current.joinFailed,
             );
           }
 
@@ -729,13 +962,13 @@ export default function MatchmakingScreen({
             !result.data
           ) {
             throw new Error(
-              "Máy chủ không trả về thông tin phòng đấu.",
+              uiRef.current.missingRoom,
             );
           }
 
           setStatusMessage(
             result.message ||
-              "Đã tham gia hàng chờ.",
+              uiRef.current.joinedQueue,
           );
 
           handleMatchData(
@@ -756,14 +989,13 @@ export default function MatchmakingScreen({
           }
 
           setError(
-            joinError instanceof
-            Error
+            joinError instanceof Error
               ? joinError.message
-              : "Không thể tham gia hàng chờ.",
+              : uiRef.current.queueJoinFailed,
           );
 
           setStatusMessage(
-            "Chưa thể tham gia phòng đấu.",
+            uiRef.current.cannotJoin,
           );
         } finally {
           joiningRef.current =
@@ -772,9 +1004,7 @@ export default function MatchmakingScreen({
           if (
             mountedRef.current
           ) {
-            setLoading(
-              false,
-            );
+            setLoading(false);
           }
         }
       },
@@ -791,6 +1021,7 @@ export default function MatchmakingScreen({
    * GET MATCH STATUS
    * ========================================
    */
+
   const checkMatchStatus =
     useCallback(
       async () => {
@@ -808,9 +1039,7 @@ export default function MatchmakingScreen({
         pollingRef.current =
           true;
 
-        setPolling(
-          true,
-        );
+        setPolling(true);
 
         try {
           const response =
@@ -819,14 +1048,9 @@ export default function MatchmakingScreen({
                 currentMatchId,
               )}`,
               {
-                method:
-                  "GET",
-
-                credentials:
-                  "include",
-
-                cache:
-                  "no-store",
+                method: "GET",
+                credentials: "include",
+                cache: "no-store",
 
                 headers: {
                   Accept:
@@ -838,19 +1062,15 @@ export default function MatchmakingScreen({
           const result =
             (await response
               .json()
-              .catch(
-                () =>
-                  null,
-              )) as
+              .catch(() => null)) as
               | MatchmakingResponse
               | null;
 
           if (
-            response.status ===
-            401
+            response.status === 401
           ) {
             throw new Error(
-              "Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.",
+              uiRef.current.expiredSession,
             );
           }
 
@@ -860,7 +1080,7 @@ export default function MatchmakingScreen({
           ) {
             throw new Error(
               result?.message ||
-                "Không thể cập nhật phòng.",
+                uiRef.current.updateFailed,
             );
           }
 
@@ -876,26 +1096,20 @@ export default function MatchmakingScreen({
             !result.data
           ) {
             setError(
-              "Phòng đấu không còn tồn tại. Bạn có thể tìm lại trận mới.",
+              uiRef.current.roomGone,
             );
 
-            setMatch(
-              null,
-            );
+            setMatch(null);
 
             matchIdRef.current =
               null;
 
-            setBotOfferVisible(
-              false,
-            );
+            setBotOfferVisible(false);
 
             return;
           }
 
-          setError(
-            "",
-          );
+          setError("");
 
           if (
             result.message
@@ -923,10 +1137,9 @@ export default function MatchmakingScreen({
           }
 
           setError(
-            statusError instanceof
-            Error
+            statusError instanceof Error
               ? statusError.message
-              : "Mất kết nối với phòng.",
+              : uiRef.current.disconnected,
           );
         } finally {
           pollingRef.current =
@@ -935,9 +1148,7 @@ export default function MatchmakingScreen({
           if (
             mountedRef.current
           ) {
-            setPolling(
-              false,
-            );
+            setPolling(false);
           }
         }
       },
@@ -951,13 +1162,10 @@ export default function MatchmakingScreen({
    * INITIAL JOIN
    * ========================================
    *
-   * Quan trọng:
-   * Không gọi joinMatch() đồng bộ trực tiếp
-   * trong effect vì React ESLint mới có thể
-   * báo react-hooks/set-state-in-effect.
-   *
-   * Schedule nó qua setTimeout.
+   * Schedule gọi joinMatch qua setTimeout
+   * để tránh set-state-in-effect.
    */
+
   useEffect(() => {
     mountedRef.current =
       true;
@@ -988,8 +1196,7 @@ export default function MatchmakingScreen({
       );
 
       if (
-        transitionTimerRef.current !==
-        null
+        transitionTimerRef.current !== null
       ) {
         window.clearTimeout(
           transitionTimerRef.current,
@@ -1008,6 +1215,7 @@ export default function MatchmakingScreen({
    * POLLING
    * ========================================
    */
+
   const currentMatchId =
     match?.id ??
     null;
@@ -1021,10 +1229,6 @@ export default function MatchmakingScreen({
       return;
     }
 
-    /*
-     * Kiểm tra ngay một lần nhưng vẫn qua
-     * setTimeout để tránh set-state-in-effect.
-     */
     const firstCheck =
       window.setTimeout(
         () => {
@@ -1061,6 +1265,7 @@ export default function MatchmakingScreen({
    * FILL WITH BOTS
    * ========================================
    */
+
   async function fillWithBots() {
     const activeMatchId =
       matchIdRef.current;
@@ -1073,57 +1278,39 @@ export default function MatchmakingScreen({
     }
 
     try {
-      setBotActionLoading(
-        true,
-      );
-
-      setError(
-        "",
-      );
+      setBotActionLoading(true);
+      setError("");
 
       setStatusMessage(
-        "Đang thêm người chơi máy...",
+        uiRef.current.fillingBots,
       );
 
       const response =
         await fetch(
           "/api/matchmaking",
           {
-            method:
-              "POST",
-
-            credentials:
-              "include",
-
-            cache:
-              "no-store",
+            method: "POST",
+            credentials: "include",
+            cache: "no-store",
 
             headers: {
               "Content-Type":
                 "application/json",
-
               Accept:
                 "application/json",
             },
 
-            body:
-              JSON.stringify({
-                action:
-                  "fill-bots",
-
-                matchId:
-                  activeMatchId,
-              }),
+            body: JSON.stringify({
+              action: "fill-bots",
+              matchId: activeMatchId,
+            }),
           },
         );
 
       const result =
         (await response
           .json()
-          .catch(
-            () =>
-              null,
-          )) as
+          .catch(() => null)) as
           | SimpleResponse
           | null;
 
@@ -1133,7 +1320,7 @@ export default function MatchmakingScreen({
       ) {
         throw new Error(
           result?.message ||
-            "Không thể thêm người chơi máy.",
+            uiRef.current.addBotFailed,
         );
       }
 
@@ -1143,13 +1330,11 @@ export default function MatchmakingScreen({
         return;
       }
 
-      setBotOfferVisible(
-        false,
-      );
+      setBotOfferVisible(false);
 
       setStatusMessage(
         result.message ||
-          "Đang chuẩn bị trận đấu...",
+          uiRef.current.preparingMatch,
       );
 
       handleMatchData(
@@ -1170,18 +1355,15 @@ export default function MatchmakingScreen({
       }
 
       setError(
-        fillError instanceof
-        Error
+        fillError instanceof Error
           ? fillError.message
-          : "Không thể thêm người chơi máy.",
+          : uiRef.current.addBotFailed,
       );
     } finally {
       if (
         mountedRef.current
       ) {
-        setBotActionLoading(
-          false,
-        );
+        setBotActionLoading(false);
       }
     }
   }
@@ -1191,6 +1373,7 @@ export default function MatchmakingScreen({
    * CONTINUE WAITING
    * ========================================
    */
+
   async function continueWaiting() {
     const activeMatchId =
       matchIdRef.current;
@@ -1203,53 +1386,35 @@ export default function MatchmakingScreen({
     }
 
     try {
-      setBotActionLoading(
-        true,
-      );
-
-      setError(
-        "",
-      );
+      setBotActionLoading(true);
+      setError("");
 
       const response =
         await fetch(
           "/api/matchmaking",
           {
-            method:
-              "POST",
-
-            credentials:
-              "include",
-
-            cache:
-              "no-store",
+            method: "POST",
+            credentials: "include",
+            cache: "no-store",
 
             headers: {
               "Content-Type":
                 "application/json",
-
               Accept:
                 "application/json",
             },
 
-            body:
-              JSON.stringify({
-                action:
-                  "continue-waiting",
-
-                matchId:
-                  activeMatchId,
-              }),
+            body: JSON.stringify({
+              action: "continue-waiting",
+              matchId: activeMatchId,
+            }),
           },
         );
 
       const result =
         (await response
           .json()
-          .catch(
-            () =>
-              null,
-          )) as
+          .catch(() => null)) as
           | SimpleResponse
           | null;
 
@@ -1259,7 +1424,7 @@ export default function MatchmakingScreen({
       ) {
         throw new Error(
           result?.message ||
-            "Không thể tiếp tục chờ.",
+            uiRef.current.continueFailed,
         );
       }
 
@@ -1269,13 +1434,11 @@ export default function MatchmakingScreen({
         return;
       }
 
-      setBotOfferVisible(
-        false,
-      );
+      setBotOfferVisible(false);
 
       setStatusMessage(
         result.message ||
-          "Tiếp tục tìm người chơi thật...",
+          uiRef.current.continuing,
       );
 
       handleMatchData(
@@ -1296,18 +1459,15 @@ export default function MatchmakingScreen({
       }
 
       setError(
-        waitError instanceof
-        Error
+        waitError instanceof Error
           ? waitError.message
-          : "Không thể tiếp tục chờ.",
+          : uiRef.current.continueFailed,
       );
     } finally {
       if (
         mountedRef.current
       ) {
-        setBotActionLoading(
-          false,
-        );
+        setBotActionLoading(false);
       }
     }
   }
@@ -1317,6 +1477,7 @@ export default function MatchmakingScreen({
    * LEAVE MATCH
    * ========================================
    */
+
   async function leaveMatch() {
     if (
       leaving ||
@@ -1325,13 +1486,8 @@ export default function MatchmakingScreen({
       return;
     }
 
-    setLeaving(
-      true,
-    );
-
-    setError(
-      "",
-    );
+    setLeaving(true);
+    setError("");
 
     try {
       const activeMatchId =
@@ -1344,41 +1500,28 @@ export default function MatchmakingScreen({
           await fetch(
             "/api/matchmaking",
             {
-              method:
-                "POST",
-
-              credentials:
-                "include",
-
-              cache:
-                "no-store",
+              method: "POST",
+              credentials: "include",
+              cache: "no-store",
 
               headers: {
                 "Content-Type":
                   "application/json",
-
                 Accept:
                   "application/json",
               },
 
-              body:
-                JSON.stringify({
-                  action:
-                    "leave",
-
-                  matchId:
-                    activeMatchId,
-                }),
+              body: JSON.stringify({
+                action: "leave",
+                matchId: activeMatchId,
+              }),
             },
           );
 
         const result =
           (await response
             .json()
-            .catch(
-              () =>
-                null,
-            )) as
+            .catch(() => null)) as
             | SimpleResponse
             | null;
 
@@ -1388,14 +1531,12 @@ export default function MatchmakingScreen({
         ) {
           throw new Error(
             result?.message ||
-              "Không thể rời phòng.",
+              uiRef.current.leaveFailed,
           );
         }
       }
 
-      setBotOfferVisible(
-        false,
-      );
+      setBotOfferVisible(false);
 
       matchIdRef.current =
         null;
@@ -1416,18 +1557,15 @@ export default function MatchmakingScreen({
       }
 
       setError(
-        leaveError instanceof
-        Error
+        leaveError instanceof Error
           ? leaveError.message
-          : "Không thể rời phòng.",
+          : uiRef.current.leaveFailed,
       );
     } finally {
       if (
         mountedRef.current
       ) {
-        setLeaving(
-          false,
-        );
+        setLeaving(false);
       }
     }
   }
@@ -1437,16 +1575,14 @@ export default function MatchmakingScreen({
    * RETRY CONNECTION
    * ========================================
    */
+
   function retryConnection() {
-    setError(
-      "",
-    );
+    setError("");
 
     if (
       matchIdRef.current
     ) {
       void checkMatchStatus();
-
       return;
     }
 
@@ -1465,20 +1601,14 @@ export default function MatchmakingScreen({
 
   const redPlayers =
     players.filter(
-      (
-        player,
-      ) =>
-        player.team ===
-        "red",
+      (player) =>
+        player.team === "red",
     );
 
   const bluePlayers =
     players.filter(
-      (
-        player,
-      ) =>
-        player.team ===
-        "blue",
+      (player) =>
+        player.team === "blue",
     );
 
   const playerCount =
@@ -1494,36 +1624,26 @@ export default function MatchmakingScreen({
     modeInformation.teamSize;
 
   const progress =
-    maxPlayers >
-    0
+    maxPlayers > 0
       ? Math.min(
           100,
-
-          (
-            playerCount /
-            maxPlayers
-          ) *
-            100,
+          (playerCount / maxPlayers) * 100,
         )
       : 0;
 
   const fallbackSeconds =
     Math.max(
       0,
-
       match?.fallbackSeconds ??
         DEFAULT_FALLBACK_SECONDS,
     );
 
   const matchStarting =
-    match?.status ===
-      "in-progress" ||
-    match?.hasStarted ===
-      true;
+    match?.status === "in-progress" ||
+    match?.hasStarted === true;
 
   const fillingBots =
-    match?.status ===
-    "filling-bots";
+    match?.status === "filling-bots";
 
   const canLeave =
     !leaving &&
@@ -1538,151 +1658,101 @@ export default function MatchmakingScreen({
    */
 
   return (
-    <section className="relative min-h-[620px] overflow-hidden rounded-2xl border border-emerald-300/20 bg-gradient-to-br from-[#102f46] via-[#0a2235] to-[#061522] px-3 pb-6 pt-20 shadow-[0_30px_80px_rgba(0,8,20,0.5)] sm:min-h-[700px] sm:rounded-[30px] sm:px-7 sm:pb-8 sm:pt-24 lg:px-10 lg:pb-10">
-
+    <section
+      lang={currentLanguage === "zh" ? "zh-CN" : "vi"}
+      className="relative min-h-[620px] overflow-hidden rounded-2xl border border-emerald-300/20 bg-gradient-to-br from-[#102f46] via-[#0a2235] to-[#061522] px-3 pb-6 pt-20 shadow-[0_30px_80px_rgba(0,8,20,0.5)] sm:min-h-[700px] sm:rounded-[30px] sm:px-7 sm:pb-8 sm:pt-24 lg:px-10 lg:pb-10"
+    >
       {/* BACKGROUND */}
 
       <div className="pointer-events-none absolute -left-24 -top-24 size-72 rounded-full bg-emerald-400/10 blur-3xl" />
-
       <div className="pointer-events-none absolute -bottom-24 -right-24 size-72 rounded-full bg-blue-400/10 blur-3xl" />
 
       {/* BACK */}
 
       <GameBackButton
-        label="Quay lại chọn chế độ"
+        label={ui.backToMode}
         position="absolute"
-        disabled={
-          !canLeave
-        }
+        disabled={!canLeave}
         onClick={() => {
           void leaveMatch();
         }}
       />
 
       <div className="relative z-10">
-
         {/* HEADER */}
 
         <header className="text-center">
-
           <span className="inline-flex max-w-full items-center rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-300 sm:px-4 sm:text-xs sm:tracking-[0.18em]">
-
-            {
-              modeInformation.icon
-            }{" "}
-
-            {
-              modeInformation.name
-            }
-
+            {modeInformation.icon} {modeInformation.name}
           </span>
 
           <h1 className="mt-4 text-2xl font-black leading-tight text-white sm:text-4xl lg:text-5xl">
-
-            {mode ===
-            "bot"
-              ? "Đang chuẩn bị đối thủ"
-              : "Đang tìm người chơi"}
-
+            {mode === "bot"
+              ? ui.preparingOpponent
+              : ui.findingOpponent}
           </h1>
 
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-slate-400 sm:text-base">
-
-            HSK{" "}
-            {level} ·{" "}
-            {
-              region.name
-            }
-
-            {region.chineseName
+            HSK {level} · {localizedRegionName}
+            {currentLanguage === "vi" && region.chineseName
               ? ` · ${region.chineseName}`
               : ""}
-
           </p>
-
         </header>
 
         {/* ROOM STATUS */}
 
         <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-white/10 bg-black/10 p-4 sm:mt-8 sm:p-5">
-
           <div className="mb-3 flex items-center justify-between gap-3 sm:gap-4">
-
             <div className="min-w-0">
-
               <span className="block text-[9px] font-black uppercase tracking-widest text-slate-500 sm:text-[10px]">
-                Trạng thái phòng
+                {ui.roomStatus}
               </span>
 
               <strong className="mt-1 block text-xs leading-relaxed text-white sm:text-base">
-                {
-                  statusMessage
-                }
+                {localizeMatchMessage(statusMessage, currentLanguage)}
               </strong>
-
             </div>
 
             <strong className="shrink-0 text-xl font-black text-amber-300 sm:text-3xl">
-
-              {
-                playerCount
-              }
-              /
-              {
-                maxPlayers
-              }
-
+              {playerCount}/{maxPlayers}
             </strong>
-
           </div>
 
           {/* PROGRESS */}
 
           <div className="h-2.5 overflow-hidden rounded-full bg-white/10 sm:h-3">
-
             <div
               className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-cyan-300 to-amber-300 transition-all duration-500"
               style={{
-                width:
-                  `${progress}%`,
+                width: `${progress}%`,
               }}
             />
-
           </div>
 
           {/* FALLBACK */}
 
-          {mode !==
-            "bot" &&
+          {mode !== "bot" &&
             !matchStarting &&
             !fillingBots && (
-            <div className="mt-4 flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
+              <div className="mt-4 flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
+                <span className="text-xs text-slate-400">
+                  {fallbackSeconds > 0
+                    ? ui.offerBotsIn
+                    : ui.canAddBots}
+                </span>
 
-              <span className="text-xs text-slate-400">
-
-                {fallbackSeconds >
-                0
-                  ? "Đề nghị thêm máy sau"
-                  : "Có thể thêm người chơi máy"}
-
-              </span>
-
-              <strong className="text-sm text-amber-300">
-
-                {fallbackSeconds >
-                0
-                  ? `${fallbackSeconds} giây`
-                  : "Sẵn sàng"}
-
-              </strong>
-
-            </div>
-          )}
+                <strong className="text-sm text-amber-300">
+                  {fallbackSeconds > 0
+                    ? `${fallbackSeconds} ${ui.fallbackSeconds}`
+                    : ui.ready}
+                </strong>
+              </div>
+            )}
 
           {/* CONNECTION STATE */}
 
           <div className="mt-3 flex items-center justify-center gap-2">
-
             <span
               className={`size-2.5 shrink-0 rounded-full ${
                 matchStarting
@@ -1694,73 +1764,51 @@ export default function MatchmakingScreen({
             />
 
             <span className="text-center text-[11px] font-bold text-slate-400 sm:text-xs">
-
               {fillingBots
-                ? "Đang thêm người chơi máy"
+                ? ui.connectionFilling
                 : matchStarting
-                  ? "Đang chuyển vào trận đấu"
+                  ? ui.connectionStarting
                   : polling
-                    ? "Đang cập nhật phòng"
+                    ? ui.connectionPolling
                     : loading
-                      ? "Đang kết nối máy chủ"
+                      ? ui.connectionLoading
                       : match
-                        ? "Tự động cập nhật mỗi 1 giây"
-                        : "Chưa tham gia phòng"}
-
+                        ? ui.connectionConnected
+                        : ui.connectionNotJoined}
             </span>
-
           </div>
-
         </div>
 
         {/* TEAMS */}
 
         <div className="mx-auto mt-6 grid max-w-6xl grid-cols-1 items-stretch gap-4 lg:mt-8 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-
           <TeamWaitingCard
-            name="Đội Đỏ"
+            name={ui.redTeam}
             icon="🦅"
             color="red"
-            players={
-              redPlayers
-            }
-            slotCount={
-              teamSize
-            }
+            players={redPlayers}
+            slotCount={teamSize}
+            language={currentLanguage}
           />
 
           <div className="flex flex-row items-center justify-center gap-3 py-1 lg:flex-col lg:py-0">
-
             <div className="grid size-14 shrink-0 place-items-center rounded-full border-2 border-amber-300/30 bg-amber-300/10 text-xl font-black text-amber-300 shadow-[0_0_35px_rgba(251,191,36,0.14)] sm:size-20 sm:text-3xl">
               VS
             </div>
 
             <span className="text-xs font-bold uppercase text-slate-500">
-
-              {
-                teamSize
-              }{" "}
-              đấu{" "}
-              {
-                teamSize
-              }
-
+              {teamSize} {ui.teamVs} {teamSize}
             </span>
-
           </div>
 
           <TeamWaitingCard
-            name="Đội Xanh"
+            name={ui.blueTeam}
             icon="🐉"
             color="blue"
-            players={
-              bluePlayers
-            }
-            slotCount={
-              teamSize
-            }
+            players={bluePlayers}
+            slotCount={teamSize}
+            language={currentLanguage}
           />
-
         </div>
 
         {/* ERROR */}
@@ -1770,147 +1818,109 @@ export default function MatchmakingScreen({
             role="alert"
             className="mx-auto mt-5 max-w-2xl rounded-2xl border border-red-300/30 bg-red-400/10 p-4 text-sm text-red-100"
           >
-
             <strong className="block">
-              Không thể ghép trận
+              {ui.errorTitle}
             </strong>
 
             <p className="mt-1 break-words leading-relaxed text-red-100/80">
-              {error}
+              {localizeMatchMessage(error, currentLanguage)}
             </p>
 
             <button
               type="button"
-              onClick={
-                retryConnection
-              }
-              disabled={
-                loading ||
-                polling
-              }
+              onClick={retryConnection}
+              disabled={loading || polling}
               className="mt-3 min-h-11 w-full rounded-xl bg-red-200 px-4 font-black text-red-950 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
-
-              {loading ||
-              polling
-                ? "Đang thử lại..."
-                : "Thử lại"}
-
+              {loading || polling
+                ? ui.retrying
+                : ui.retry}
             </button>
-
           </div>
         )}
 
         {/* LEAVE */}
 
         <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-
           <button
             type="button"
-            disabled={
-              !canLeave
-            }
+            disabled={!canLeave}
             onClick={() => {
               void leaveMatch();
             }}
             className="min-h-12 w-full rounded-xl border border-white/10 bg-white/5 px-6 text-sm font-bold text-slate-300 transition hover:border-red-300/30 hover:bg-red-400/10 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
           >
-
             {leaving
-              ? "Đang rời phòng..."
+              ? ui.leaving
               : match
-                ? "Rời hàng chờ"
-                : "Quay lại chọn chế độ"}
-
+                ? ui.leaveQueue
+                : ui.backToMode}
           </button>
-
         </div>
-
       </div>
 
-      {/* =====================================
-          BOT OFFER MODAL
-          ===================================== */}
+      {/* BOT OFFER MODAL */}
 
       {botOfferVisible &&
-        mode !==
-          "bot" &&
+        mode !== "bot" &&
         !matchStarting && (
-        <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/75 p-4 backdrop-blur-sm">
+          <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/75 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-[28px] border border-amber-300/20 bg-[#0b2235] p-5 text-center shadow-2xl sm:p-7">
+              <div className="mx-auto grid size-20 place-items-center rounded-full border border-amber-300/20 bg-amber-300/10 text-4xl">
+                🤖
+              </div>
 
-          <div className="w-full max-w-lg rounded-[28px] border border-amber-300/20 bg-[#0b2235] p-5 text-center shadow-2xl sm:p-7">
+              <span className="mt-5 block text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">
+                {ui.botOfferLabel}
+              </span>
 
-            <div className="mx-auto grid size-20 place-items-center rounded-full border border-amber-300/20 bg-amber-300/10 text-4xl">
-              🤖
+              <h2 className="mt-2 text-2xl font-black text-white sm:text-3xl">
+                {ui.botOfferTitle}
+              </h2>
+
+              <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-400">
+                {ui.botOfferDescription}
+              </p>
+
+              <div className="mt-6 grid gap-3">
+                <button
+                  type="button"
+                  disabled={botActionLoading}
+                  onClick={() => {
+                    void fillWithBots();
+                  }}
+                  className="min-h-12 rounded-xl bg-amber-300 px-5 font-black text-[#312108] transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {botActionLoading
+                    ? ui.processing
+                    : ui.playBots}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={botActionLoading}
+                  onClick={() => {
+                    void continueWaiting();
+                  }}
+                  className="min-h-12 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-5 font-black text-emerald-200 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {ui.continueWaiting}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={botActionLoading || leaving}
+                  onClick={() => {
+                    void leaveMatch();
+                  }}
+                  className="min-h-11 rounded-xl border border-white/10 bg-white/5 px-5 text-sm font-bold text-slate-400 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  ← {ui.backToMode}
+                </button>
+              </div>
             </div>
-
-            <span className="mt-5 block text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">
-              Chưa đủ người chơi
-            </span>
-
-            <h2 className="mt-2 text-2xl font-black text-white sm:text-3xl">
-              Thêm máy vào trận?
-            </h2>
-
-            <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-400">
-
-              Hiện chưa tìm đủ người chơi thật. Bạn có thể thêm người chơi máy để bắt đầu ngay hoặc tiếp tục chờ.
-
-            </p>
-
-            <div className="mt-6 grid gap-3">
-
-              <button
-                type="button"
-                disabled={
-                  botActionLoading
-                }
-                onClick={() => {
-                  void fillWithBots();
-                }}
-                className="min-h-12 rounded-xl bg-amber-300 px-5 font-black text-[#312108] transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-
-                {botActionLoading
-                  ? "Đang xử lý..."
-                  : "🤖 Đấu với máy"}
-
-              </button>
-
-              <button
-                type="button"
-                disabled={
-                  botActionLoading
-                }
-                onClick={() => {
-                  void continueWaiting();
-                }}
-                className="min-h-12 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-5 font-black text-emerald-200 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                👥 Tiếp tục chờ người thật
-              </button>
-
-              <button
-                type="button"
-                disabled={
-                  botActionLoading ||
-                  leaving
-                }
-                onClick={() => {
-                  void leaveMatch();
-                }}
-                className="min-h-11 rounded-xl border border-white/10 bg-white/5 px-5 text-sm font-bold text-slate-400 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                ← Quay lại chọn chế độ
-              </button>
-
-            </div>
-
           </div>
-
-        </div>
-      )}
-
+        )}
     </section>
   );
 }
@@ -1927,37 +1937,29 @@ function TeamWaitingCard({
   color,
   players,
   slotCount,
+  language,
 }: {
   name: string;
-
   icon: string;
-
-  color:
-    | "red"
-    | "blue";
-
-  players:
-    MatchmakingPlayer[];
-
+  color: "red" | "blue";
+  players: MatchmakingPlayer[];
   slotCount: number;
+  language: MatchmakingLanguage;
 }) {
-  const emptySlots =
-    Math.max(
-      0,
+  const ui = MATCHMAKING_TEXT[language];
 
-      slotCount -
-        players.length,
-    );
+  const emptySlots = Math.max(
+    0,
+    slotCount - players.length,
+  );
 
   const colorClass =
-    color ===
-    "red"
+    color === "red"
       ? "border-red-300/20 bg-red-400/5"
       : "border-blue-300/20 bg-blue-400/5";
 
   const titleColor =
-    color ===
-    "red"
+    color === "red"
       ? "text-red-300"
       : "text-blue-300";
 
@@ -1965,17 +1967,13 @@ function TeamWaitingCard({
     <article
       className={`min-w-0 rounded-2xl border p-4 sm:rounded-3xl sm:p-5 ${colorClass}`}
     >
-
       <div className="mb-4 flex items-center justify-between gap-3">
-
         <div className="flex min-w-0 items-center gap-3">
-
           <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/5 text-2xl">
             {icon}
           </div>
 
           <div className="min-w-0">
-
             <span
               className={`block text-[10px] font-black uppercase tracking-widest ${titleColor}`}
             >
@@ -1983,76 +1981,45 @@ function TeamWaitingCard({
             </span>
 
             <strong className="block text-sm text-white">
-              {
-                players.length
-              }
-              /
-              {
-                slotCount
-              }{" "}
-              người chơi
+              {players.length}/{slotCount} {ui.teamPlayers}
             </strong>
-
           </div>
-
         </div>
-
       </div>
 
       <div className="space-y-2">
-
-        {players.map(
-          (
-            player,
-            index,
-          ) => (
-            <PlayerSlot
-              key={`${player.user.id}-${player.team}-${index}`}
-              player={
-                player
-              }
-              color={
-                color
-              }
-            />
-          ),
-        )}
+        {players.map((player, index) => (
+          <PlayerSlot
+            key={`${player.user.id}-${player.team}-${index}`}
+            player={player}
+            color={color}
+            language={language}
+          />
+        ))}
 
         {Array.from({
-          length:
-            emptySlots,
-        }).map(
-          (
-            _,
-            index,
-          ) => (
-            <div
-              key={`empty-${color}-${index}`}
-              className="flex min-h-14 items-center gap-3 rounded-xl border border-dashed border-white/10 bg-white/[0.025] px-3"
-            >
-
-              <div className="grid size-9 shrink-0 place-items-center rounded-full bg-white/5 text-sm text-slate-600">
-                ?
-              </div>
-
-              <div className="min-w-0">
-
-                <strong className="block truncate text-xs text-slate-500">
-                  Đang tìm người chơi
-                </strong>
-
-                <span className="block truncate text-[10px] text-slate-600">
-                  Vị trí còn trống
-                </span>
-
-              </div>
-
+          length: emptySlots,
+        }).map((_, index) => (
+          <div
+            key={`empty-${color}-${index}`}
+            className="flex min-h-14 items-center gap-3 rounded-xl border border-dashed border-white/10 bg-white/[0.025] px-3"
+          >
+            <div className="grid size-9 shrink-0 place-items-center rounded-full bg-white/5 text-sm text-slate-600">
+              ?
             </div>
-          ),
-        )}
 
+            <div className="min-w-0">
+              <strong className="block truncate text-xs text-slate-500">
+                {ui.findingPlayer}
+              </strong>
+
+              <span className="block truncate text-[10px] text-slate-600">
+                {ui.emptySlot}
+              </span>
+            </div>
+          </div>
+        ))}
       </div>
-
     </article>
   );
 }
@@ -2066,14 +2033,14 @@ function TeamWaitingCard({
 function PlayerSlot({
   player,
   color,
+  language,
 }: {
-  player:
-    MatchmakingPlayer;
-
-  color:
-    | "red"
-    | "blue";
+  player: MatchmakingPlayer;
+  color: "red" | "blue";
+  language: MatchmakingLanguage;
 }) {
+  const ui = MATCHMAKING_TEXT[language];
+
   const avatar =
     player.user.avatar?.trim() ||
     "";
@@ -2085,66 +2052,44 @@ function PlayerSlot({
 
   return (
     <div className="flex min-h-14 items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3">
-
       <div
         className={`grid size-10 shrink-0 place-items-center overflow-hidden rounded-full ${
-          color ===
-          "red"
+          color === "red"
             ? "bg-red-300/15"
             : "bg-blue-300/15"
         }`}
       >
-
-        {avatar.startsWith(
-          "http",
-        ) ? (
+        {avatar.startsWith("http") ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={
-              avatar
-            }
-            alt={
-              player.user.name
-            }
+            src={avatar}
+            alt={player.user.name}
             className="size-full object-cover"
           />
         ) : (
-          <span>
-            {avatar ||
-              fallbackAvatar}
-          </span>
+          <span>{avatar || fallbackAvatar}</span>
         )}
-
       </div>
 
       <div className="min-w-0 flex-1">
-
         <strong className="block truncate text-sm text-white">
-          {
-            player.user.name
-          }
+          {player.user.name}
         </strong>
 
         <span className="block truncate text-[10px] font-bold uppercase tracking-wide text-slate-500">
-
           {player.isBot
-            ? "Người chơi máy"
-            : "Người chơi thật"}
-
+            ? ui.botPlayer
+            : ui.humanPlayer}
         </span>
-
       </div>
 
       <span className="hidden shrink-0 rounded-full bg-emerald-300/10 px-2 py-1 text-[9px] font-black uppercase text-emerald-300 sm:inline-flex">
-
         {player.disconnected
-          ? "Mất kết nối"
+          ? ui.disconnectedPlayer
           : player.isReady
-            ? "Sẵn sàng"
-            : "Đang chờ"}
-
+            ? ui.ready
+            : ui.waiting}
       </span>
-
     </div>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { useLanguage } from "@/contexts/LanguageContext";
+
 interface GameBackButtonProps {
   label?: string;
   onClick: () => void;
@@ -8,17 +10,22 @@ interface GameBackButtonProps {
 }
 
 export default function GameBackButton({
-  label = "Quay lại",
+  label,
   onClick,
   disabled = false,
   position = "normal",
 }: GameBackButtonProps) {
+  const { language } = useLanguage();
+
+  const buttonLabel = label ?? (language === "zh" ? "返回地图" : "Quay lại");
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      aria-label={label}
+      aria-label={buttonLabel}
+      lang={language === "zh" ? "zh-CN" : "vi"}
       className={`
         z-40 inline-flex min-h-11 items-center
         justify-center gap-2 rounded-xl border
@@ -40,20 +47,11 @@ export default function GameBackButton({
         }
       `}
     >
-      <span
-        aria-hidden="true"
-        className="text-lg leading-none"
-      >
+      <span aria-hidden="true" className="text-lg leading-none">
         ←
       </span>
 
-      <span className="hidden sm:inline">
-        {label}
-      </span>
-
-      <span className="sm:hidden">
-        Quay lại
-      </span>
+      <span>{buttonLabel}</span>
     </button>
   );
 }

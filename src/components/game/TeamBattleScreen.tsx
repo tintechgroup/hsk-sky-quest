@@ -11,6 +11,8 @@ import {
   useBattleQuestionsContext,
 } from "@/contexts/BattleQuestionsContext";
 
+import { useLanguage } from "@/contexts/LanguageContext";
+
 import type {
   MatchmakingMatch,
   MatchmakingPlayer,
@@ -97,6 +99,155 @@ const QUESTION_TIME =
 const RESULT_POLLING_INTERVAL =
   2000;
 
+type BattleLanguage = "vi" | "zh";
+
+const TEAM_BATTLE_TEXT = {
+  vi: {
+    redTeam: "ĐỘI ĐỎ",
+    blueTeam: "ĐỘI XANH",
+    question: "CÂU",
+    questionSuffix: "",
+    seconds: "giây",
+    individualScore: "Điểm cá nhân:",
+    commonQuestion: "CÂU HỎI CHUNG",
+    pinyinHint: "Dùng Kính phiên âm để hiển thị Pinyin",
+    removed: "Đã loại bỏ",
+    hint: "Gợi ý",
+    retryAnswerTitle: "Đáp án chưa chính xác",
+    retryAnswerDescription: "Bạn có muốn dùng Thẻ hồi đáp để trả lời lại không?",
+    useRetry: "🔄 Dùng thẻ",
+    skipRetry: "Không sử dụng",
+    timeout: "⏱ Đã hết thời gian!",
+    correct: "✓ Chính xác!",
+    incorrect: "✕ Chưa chính xác!",
+    supportItems: "Vật phẩm hỗ trợ",
+    hintItem: "Gợi ý",
+    pinyinItem: "Pinyin",
+    extraTime: "+10 giây",
+    retryItem: "Trả lời lại",
+    saving: "Đang lưu kết quả...",
+    finishMatch: "Hoàn thành trận đấu",
+    nextQuestion: "Câu tiếp theo →",
+    confirmAnswer: "Xác nhận đáp án",
+    savedResult: "Đã lưu kết quả của bạn",
+    waitingPlayers: "Đang chờ người chơi khác",
+    waitingPlayersDescription: "Những người chơi khác vẫn đang trả lời câu hỏi.",
+    playersCompleted: "người đã hoàn thành",
+    refreshResult: "Cập nhật kết quả",
+    matchResult: "Kết quả trận đấu",
+    draw: "Hai đội hòa nhau!",
+    playerWon: "Đội của bạn chiến thắng!",
+    opponentWon: "Đội đối thủ chiến thắng!",
+    resultSaved: "Kết quả và số lần chơi đã được lưu vào tài khoản của bạn.",
+    secondsUnit: "giây",
+    newJourney: "Bắt đầu hành trình mới",
+    insufficientQuestions: "Chưa có đủ câu hỏi",
+    noQuestionsForLevel: "Chưa có đủ câu hỏi HSK",
+    back: "Quay lại",
+    loadResultFailed: "Không thể cập nhật kết quả.",
+    waitingResult: "Đang chờ người chơi khác hoàn thành.",
+    saveResultFailed: "Không thể lưu kết quả.",
+    resultSavedMessage: "Đã lưu kết quả.",
+    savingResult: "Đang lưu kết quả trận đấu...",
+    retryResult: "Thử lại",
+    unknownMode: "Đấu đội",
+  },
+  zh: {
+    redTeam: "红队",
+    blueTeam: "蓝队",
+    question: "第",
+    questionSuffix: "题",
+    seconds: "秒",
+    individualScore: "个人得分：",
+    commonQuestion: "团队题目",
+    pinyinHint: "使用拼音卡显示拼音",
+    removed: "已排除",
+    hint: "提示",
+    retryAnswerTitle: "答案不正确",
+    retryAnswerDescription: "要使用重答卡再回答一次吗？",
+    useRetry: "🔄 使用重答卡",
+    skipRetry: "不使用",
+    timeout: "⏱ 时间到！",
+    correct: "✓ 正确！",
+    incorrect: "✕ 不正确！",
+    supportItems: "辅助道具",
+    hintItem: "提示",
+    pinyinItem: "拼音",
+    extraTime: "+10 秒",
+    retryItem: "重新作答",
+    saving: "正在保存结果...",
+    finishMatch: "完成比赛",
+    nextQuestion: "下一题 →",
+    confirmAnswer: "确认答案",
+    savedResult: "你的比赛结果已保存",
+    waitingPlayers: "正在等待其他玩家",
+    waitingPlayersDescription: "其他玩家仍在回答题目。",
+    playersCompleted: "名玩家已完成",
+    refreshResult: "刷新结果",
+    matchResult: "比赛结果",
+    draw: "两队平局！",
+    playerWon: "你的队伍获胜！",
+    opponentWon: "对方队伍获胜！",
+    resultSaved: "比赛结果和次数已保存到你的账户。",
+    secondsUnit: "秒",
+    newJourney: "开始新的旅程",
+    insufficientQuestions: "题目数量不足",
+    noQuestionsForLevel: "该地区暂无足够的",
+    back: "返回",
+    loadResultFailed: "无法更新比赛结果。",
+    waitingResult: "正在等待其他玩家完成比赛。",
+    saveResultFailed: "无法保存比赛结果。",
+    resultSavedMessage: "比赛结果已保存。",
+    savingResult: "正在保存比赛结果...",
+    retryResult: "重试",
+    unknownMode: "团队赛",
+  },
+} as const;
+
+const KNOWN_BATTLE_MESSAGES: Record<string, string> = {
+  "Không thể cập nhật kết quả.": TEAM_BATTLE_TEXT.zh.loadResultFailed,
+  "Đang chờ người chơi khác hoàn thành.": TEAM_BATTLE_TEXT.zh.waitingResult,
+  "Không thể lưu kết quả.": TEAM_BATTLE_TEXT.zh.saveResultFailed,
+  "Đã lưu kết quả.": TEAM_BATTLE_TEXT.zh.resultSavedMessage,
+  "Đang lưu kết quả trận đấu...": TEAM_BATTLE_TEXT.zh.savingResult,
+};
+
+function localizeBattleMessage(
+  message: string,
+  language: BattleLanguage,
+) {
+  return language === "zh"
+    ? KNOWN_BATTLE_MESSAGES[message] ?? message
+    : message;
+}
+
+function getBattleModeName(
+  mode: string,
+  language: BattleLanguage,
+) {
+  const names: Record<string, { vi: string; zh: string }> = {
+    "1v1": { vi: "Đấu 1 đối 1", zh: "一对一对战" },
+    "3v3": { vi: "Đấu đội 3 đối 3", zh: "三对三团队赛" },
+    "5v5": { vi: "Đại chiến 5 đối 5", zh: "五对五大战" },
+    bot: { vi: "Đấu với máy", zh: "人机对战" },
+  };
+
+  return names[mode]?.[language] ?? TEAM_BATTLE_TEXT[language].unknownMode;
+}
+
+function getLocalizedRegionName(
+  region: Region,
+  language: BattleLanguage,
+) {
+  const regionWithChineseName = region as Region & {
+    chineseName?: string;
+  };
+
+  return language === "zh"
+    ? regionWithChineseName.chineseName || region.name
+    : region.name;
+}
+
 export default function TeamBattleScreen({
   level,
   region,
@@ -104,6 +255,11 @@ export default function TeamBattleScreen({
   initialInventory,
   onRestart,
 }: TeamBattleScreenProps) {
+  const { language } = useLanguage();
+  const currentLanguage: BattleLanguage =
+    language === "zh" ? "zh" : "vi";
+  const ui = TEAM_BATTLE_TEXT[currentLanguage];
+
   const {
     questions:
       battleQuestions,
@@ -550,7 +706,7 @@ export default function TeamBattleScreen({
           ) {
             throw new Error(
               result?.message ||
-                "Không thể cập nhật kết quả.",
+                ui.loadResultFailed,
             );
           }
 
@@ -604,7 +760,7 @@ export default function TeamBattleScreen({
           } else {
             setSubmitMessage(
               result.message ||
-                "Đang chờ người chơi khác hoàn thành.",
+                ui.waitingResult,
             );
           }
         } catch (
@@ -619,11 +775,12 @@ export default function TeamBattleScreen({
             error instanceof
             Error
               ? error.message
-              : "Không thể cập nhật kết quả.",
+              : ui.loadResultFailed,
           );
         }
       },
       [
+        currentLanguage,
         liveMatch.id,
       ],
     );
@@ -978,7 +1135,7 @@ export default function TeamBattleScreen({
         );
 
         setSubmitMessage(
-          "Đang lưu kết quả trận đấu...",
+          ui.savingResult,
         );
 
         try {
@@ -1037,13 +1194,13 @@ export default function TeamBattleScreen({
           ) {
             throw new Error(
               result?.message ||
-                "Không thể lưu kết quả.",
+                ui.saveResultFailed,
             );
           }
 
           setSubmitMessage(
             result.message ||
-              "Đã lưu kết quả.",
+              ui.resultSavedMessage,
           );
 
           if (
@@ -1103,7 +1260,7 @@ export default function TeamBattleScreen({
             error instanceof
             Error
               ? error.message
-              : "Không thể lưu kết quả.",
+              : ui.saveResultFailed,
           );
         } finally {
           setSubmitting(
@@ -1113,6 +1270,7 @@ export default function TeamBattleScreen({
       },
       [
         correctAnswers,
+        currentLanguage,
         liveMatch.id,
         submitting,
         totalBattleTime,
@@ -1209,6 +1367,7 @@ export default function TeamBattleScreen({
       <EmptyQuestionScreen
         level={level}
         region={region}
+        language={currentLanguage}
         onRestart={
           onRestart
         }
@@ -1231,11 +1390,18 @@ export default function TeamBattleScreen({
           liveMatch
         }
         message={
-          submitMessage
+          localizeBattleMessage(
+            submitMessage,
+            currentLanguage,
+          )
         }
         error={
-          submitError
+          localizeBattleMessage(
+            submitError,
+            currentLanguage,
+          )
         }
+        language={currentLanguage}
         onRefresh={() =>
           void checkFinalResult()
         }
@@ -1264,6 +1430,7 @@ export default function TeamBattleScreen({
         match={
           liveMatch
         }
+        language={currentLanguage}
         onRestart={
           onRestart
         }
@@ -1278,6 +1445,7 @@ export default function TeamBattleScreen({
       <EmptyQuestionScreen
         level={level}
         region={region}
+        language={currentLanguage}
         onRestart={
           onRestart
         }
@@ -1313,7 +1481,7 @@ export default function TeamBattleScreen({
       <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-[#051c2c]/90 p-3 sm:gap-4 sm:p-5">
 
         <TeamScore
-          team="ĐỘI ĐỎ"
+          team={ui.redTeam}
           icon="🦅"
           score={
             displayedRedScore
@@ -1328,7 +1496,7 @@ export default function TeamBattleScreen({
 
           <span className="block text-[8px] font-black tracking-wider text-emerald-300 sm:text-[11px]">
 
-            CÂU{" "}
+            {ui.question}{" "}
             {
               questionIndex +
               1
@@ -1336,7 +1504,7 @@ export default function TeamBattleScreen({
             /
             {
               battleQuestions.length
-            }
+            }{ui.questionSuffix}
 
           </span>
 
@@ -1351,14 +1519,17 @@ export default function TeamBattleScreen({
 
           <small className="hidden text-slate-400 sm:block">
             {
-              liveMatch.mode
+              getBattleModeName(
+                liveMatch.mode,
+                currentLanguage,
+              )
             }
           </small>
 
         </div>
 
         <TeamScore
-          team="ĐỘI XANH"
+          team={ui.blueTeam}
           icon="🐉"
           score={
             displayedBlueScore
@@ -1401,7 +1572,7 @@ export default function TeamBattleScreen({
 
           <span className="text-[11px] font-bold text-slate-400 sm:text-xs">
 
-            Điểm cá nhân:{" "}
+            {ui.individualScore}{" "}
             {
               correctAnswers
             }
@@ -1421,7 +1592,7 @@ export default function TeamBattleScreen({
             {
               timeLeft
             }{" "}
-            giây
+            {ui.seconds}
 
           </span>
 
@@ -1453,7 +1624,7 @@ export default function TeamBattleScreen({
         <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
 
           <span className="rounded-full bg-emerald-300/10 px-3 py-1 text-[9px] font-black text-emerald-300">
-            CÂU HỎI CHUNG
+            {ui.commonQuestion}
           </span>
 
           <span className="rounded-full bg-blue-300/10 px-3 py-1 text-[9px] font-black text-blue-300">
@@ -1485,7 +1656,7 @@ export default function TeamBattleScreen({
             </p>
           ) : (
             <p className="text-xs text-slate-500 sm:text-sm">
-              Dùng Kính phiên âm để hiển thị Pinyin
+              {ui.pinyinHint}
             </p>
           )}
 
@@ -1575,7 +1746,7 @@ export default function TeamBattleScreen({
                   <strong className="break-words text-sm sm:text-base">
 
                     {isHidden
-                      ? "Đã loại bỏ"
+                      ? ui.removed
                       : option}
 
                   </strong>
@@ -1593,7 +1764,7 @@ export default function TeamBattleScreen({
           <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4 text-amber-100">
 
             <strong>
-              💡 Gợi ý
+              💡 {ui.hint}
             </strong>
 
             <p className="mt-1 text-sm leading-relaxed">
@@ -1613,11 +1784,11 @@ export default function TeamBattleScreen({
           <div className="mt-5 rounded-2xl border border-orange-300/30 bg-orange-300/10 p-4">
 
             <strong className="text-orange-200">
-              Đáp án chưa chính xác
+              {ui.retryAnswerTitle}
             </strong>
 
             <p className="mb-4 mt-2 text-sm text-slate-300">
-              Bạn có muốn dùng Thẻ hồi đáp để trả lời lại không?
+              {ui.retryAnswerDescription}
             </p>
 
             <div className="grid gap-2 sm:grid-cols-2">
@@ -1629,7 +1800,7 @@ export default function TeamBattleScreen({
                 }
                 className="min-h-12 rounded-xl bg-orange-300 px-4 font-black text-[#33220b]"
               >
-                🔄 Dùng thẻ
+                {ui.useRetry}
               </button>
 
               <button
@@ -1639,7 +1810,7 @@ export default function TeamBattleScreen({
                 }
                 className="min-h-12 rounded-xl border border-white/10 bg-white/5 px-4 font-bold text-slate-300"
               >
-                Không sử dụng
+                {ui.skipRetry}
               </button>
 
             </div>
@@ -1662,10 +1833,10 @@ export default function TeamBattleScreen({
             <strong className="text-lg">
 
               {timedOut
-                ? "⏱ Đã hết thời gian!"
+                ? ui.timeout
                 : selectedIsCorrect
-                  ? "✓ Chính xác!"
-                  : "✕ Chưa chính xác!"}
+                  ? ui.correct
+                  : ui.incorrect}
 
             </strong>
 
@@ -1683,7 +1854,10 @@ export default function TeamBattleScreen({
         {submitError && (
           <div className="mt-5 rounded-xl border border-red-300/30 bg-red-400/10 p-4 text-sm text-red-100">
             {
-              submitError
+              localizeBattleMessage(
+                submitError,
+                currentLanguage,
+              )
             }
           </div>
         )}
@@ -1699,7 +1873,7 @@ export default function TeamBattleScreen({
           <div>
 
             <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">
-              Vật phẩm hỗ trợ
+              {ui.supportItems}
             </span>
 
             <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
@@ -1726,7 +1900,7 @@ export default function TeamBattleScreen({
 
               <ItemButton
                 icon="💡"
-                name="Gợi ý"
+                name={ui.hintItem}
                 quantity={
                   inventory.hint
                 }
@@ -1741,7 +1915,7 @@ export default function TeamBattleScreen({
 
               <ItemButton
                 icon="🔎"
-                name="Pinyin"
+                name={ui.pinyinItem}
                 quantity={
                   inventory.pinyin
                 }
@@ -1757,7 +1931,7 @@ export default function TeamBattleScreen({
 
               <ItemButton
                 icon="⏱️"
-                name="+10 giây"
+                name={ui.extraTime}
                 quantity={
                   inventory[
                     "extra-time"
@@ -1773,7 +1947,7 @@ export default function TeamBattleScreen({
 
               <ItemButton
                 icon="🔄"
-                name="Trả lời lại"
+                name={ui.retryItem}
                 quantity={
                   inventory.retry
                 }
@@ -1797,12 +1971,12 @@ export default function TeamBattleScreen({
             >
 
               {submitting
-                ? "Đang lưu kết quả..."
+                ? ui.saving
                 : questionIndex >=
                     battleQuestions.length -
                       1
-                  ? "Hoàn thành trận đấu"
-                  : "Câu tiếp theo →"}
+                  ? ui.finishMatch
+                  : ui.nextQuestion}
 
             </button>
           ) : (
@@ -1818,7 +1992,7 @@ export default function TeamBattleScreen({
               }
               className="min-h-12 w-full rounded-xl bg-gradient-to-r from-amber-300 to-orange-300 px-7 font-black text-[#382207] disabled:opacity-40 xl:w-auto"
             >
-              Xác nhận đáp án
+              {ui.confirmAnswer}
             </button>
           )}
 
@@ -2038,6 +2212,7 @@ function WaitingResultScreen({
   match,
   message,
   error,
+  language,
   onRefresh,
 }: {
   match:
@@ -2047,9 +2222,12 @@ function WaitingResultScreen({
 
   error: string;
 
+  language: BattleLanguage;
+
   onRefresh:
     () => void;
 }) {
+  const ui = TEAM_BATTLE_TEXT[language];
   const submittedCount =
     match.players.filter(
       (
@@ -2068,17 +2246,17 @@ function WaitingResultScreen({
         </div>
 
         <span className="mt-6 block text-xs font-black uppercase tracking-[0.18em] text-emerald-300">
-          Đã lưu kết quả của bạn
+          {ui.savedResult}
         </span>
 
         <h2 className="mt-2 text-3xl font-black text-white sm:text-4xl">
-          Đang chờ người chơi khác
+          {ui.waitingPlayers}
         </h2>
 
         <p className="mt-3 text-sm leading-relaxed text-slate-400">
 
           {message ||
-            "Những người chơi khác vẫn đang trả lời câu hỏi."}
+            ui.waitingPlayersDescription}
 
         </p>
 
@@ -2097,7 +2275,7 @@ function WaitingResultScreen({
           </strong>
 
           <span className="mt-1 block text-xs text-slate-500">
-            người đã hoàn thành
+            {ui.playersCompleted}
           </span>
 
         </div>
@@ -2115,7 +2293,7 @@ function WaitingResultScreen({
           }
           className="mt-5 min-h-11 rounded-xl border border-white/10 bg-white/5 px-5 font-bold text-slate-200"
         >
-          Cập nhật kết quả
+          {ui.refreshResult}
         </button>
 
       </div>
@@ -2134,6 +2312,7 @@ function ResultScreen({
   result,
   region,
   match,
+  language,
   onRestart,
 }: {
   result:
@@ -2145,9 +2324,12 @@ function ResultScreen({
   match:
     MatchmakingMatch;
 
+  language: BattleLanguage;
+
   onRestart:
     () => void;
 }) {
+  const ui = TEAM_BATTLE_TEXT[language];
   const currentTeam =
     match.currentUserTeam;
 
@@ -2170,24 +2352,27 @@ function ResultScreen({
       </div>
 
       <span className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-emerald-300">
-        Kết quả trận đấu
+        {ui.matchResult}
       </span>
 
       <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">
 
         {result.winner ===
         "draw"
-          ? "Hai đội hòa nhau!"
+          ? ui.draw
           : playerWon
-            ? "Đội của bạn chiến thắng!"
-            : "Đội đối thủ chiến thắng!"}
+            ? ui.playerWon
+            : ui.opponentWon}
 
       </h2>
 
       <p className="mt-3 text-slate-400">
 
         {
-          match.mode
+          getBattleModeName(
+            match.mode,
+            language,
+          )
         }{" "}
         · HSK{" "}
         {
@@ -2195,7 +2380,7 @@ function ResultScreen({
         }{" "}
         ·{" "}
         {
-          region.name
+          getLocalizedRegionName(region, language)
         }
 
       </p>
@@ -2203,7 +2388,7 @@ function ResultScreen({
       <div className="my-8 grid w-full max-w-2xl grid-cols-[1fr_auto_1fr] items-center gap-3">
 
         <ResultCard
-          name="Đội Đỏ"
+          name={ui.redTeam}
           icon="🦅"
           score={
             result.redScore
@@ -2216,6 +2401,7 @@ function ResultScreen({
             "red"
           }
           color="red"
+          language={language}
         />
 
         <strong className="text-2xl text-amber-300">
@@ -2223,7 +2409,7 @@ function ResultScreen({
         </strong>
 
         <ResultCard
-          name="Đội Xanh"
+          name={ui.blueTeam}
           icon="🐉"
           score={
             result.blueScore
@@ -2236,6 +2422,7 @@ function ResultScreen({
             "blue"
           }
           color="blue"
+          language={language}
         />
 
       </div>
@@ -2243,7 +2430,7 @@ function ResultScreen({
       <div className="mb-6 rounded-xl border border-emerald-300/10 bg-emerald-300/5 px-5 py-3 text-sm text-slate-300">
 
         <p>
-          Kết quả và số lần chơi đã được lưu vào tài khoản của bạn.
+          {ui.resultSaved}
         </p>
 
         {result.persistedMatchId && (
@@ -2266,7 +2453,7 @@ function ResultScreen({
         }
         className="min-h-12 rounded-xl bg-emerald-300 px-7 font-black text-[#062d32]"
       >
-        Bắt đầu hành trình mới
+        {ui.newJourney}
       </button>
 
     </section>
@@ -2286,6 +2473,7 @@ function ResultCard({
   time,
   winner,
   color,
+  language,
 }: {
   name: string;
 
@@ -2300,7 +2488,11 @@ function ResultCard({
   color:
     | "red"
     | "blue";
+
+  language: BattleLanguage;
 }) {
+  const ui = TEAM_BATTLE_TEXT[language];
+
   return (
     <article
       className={`rounded-2xl border p-4 sm:p-6 ${
@@ -2333,7 +2525,7 @@ function ResultCard({
             time,
           ),
         )}{" "}
-        giây
+        {ui.secondsUnit}
 
       </small>
 
@@ -2350,6 +2542,7 @@ function ResultCard({
 function EmptyQuestionScreen({
   level,
   region,
+  language,
   onRestart,
 }: {
   level:
@@ -2358,9 +2551,13 @@ function EmptyQuestionScreen({
   region:
     Region;
 
+  language: BattleLanguage;
+
   onRestart:
     () => void;
 }) {
+  const ui = TEAM_BATTLE_TEXT[language];
+
   return (
     <section className="grid min-h-[500px] place-items-center rounded-3xl border border-amber-300/20 bg-[#0b2235] p-6 text-center">
 
@@ -2371,14 +2568,21 @@ function EmptyQuestionScreen({
         </div>
 
         <h2 className="mt-4 text-2xl font-black">
-          Chưa có đủ câu hỏi
+          {ui.insufficientQuestions}
         </h2>
 
         <p className="mt-2 text-slate-400">
 
-          Chưa có đủ câu hỏi HSK{" "}
-          {level} tại{" "}
-          {region.name}.
+          {language === "zh" ? (
+            <>
+              {ui.noQuestionsForLevel} HSK {level}级（
+              {getLocalizedRegionName(region, language)}）题目。
+            </>
+          ) : (
+            <>
+              {ui.noQuestionsForLevel} {level} tại {region.name}.
+            </>
+          )}
 
         </p>
 
@@ -2389,7 +2593,7 @@ function EmptyQuestionScreen({
           }
           className="mt-5 rounded-xl bg-emerald-300 px-6 py-3 font-black text-[#062d32]"
         >
-          Quay lại
+          {ui.back}
         </button>
 
       </div>

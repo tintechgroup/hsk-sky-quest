@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+type Language = "vi" | "zh";
+type MatchMode = "1v1" | "3v3" | "5v5" | "bot";
+type MatchResult = "win" | "loss" | "draw";
 
 interface HistoryPlayer {
   id: string;
@@ -22,51 +22,28 @@ interface HistoryPlayer {
 
 interface HistoryMatch {
   id: string;
-
-  mode:
-    | "1v1"
-    | "3v3"
-    | "5v5"
-    | "bot";
-
+  mode: MatchMode;
   level: number;
-
   region: {
     id: string;
     name: string;
     chineseName: string;
     pinyin: string;
   };
-
-  result:
-    | "win"
-    | "loss"
-    | "draw";
-
-  winner:
-    | "red"
-    | "blue"
-    | "draw";
-
-  currentUserTeam:
-    | "red"
-    | "blue"
-    | null;
-
+  result: MatchResult;
+  winner: "red" | "blue" | "draw";
+  currentUserTeam: "red" | "blue" | null;
   redScore: number;
   blueScore: number;
   redTime: number;
   blueTime: number;
-
   playerResult: {
     score: number;
     correctAnswers: number;
     wrongAnswers: number;
     totalTime: number;
   };
-
   players: HistoryPlayer[];
-
   startedAt: string | null;
   completedAt: string | null;
 }
@@ -87,23 +64,117 @@ interface HistoryResponse {
   pagination?: Pagination;
 }
 
-function formatDate(
-  value: string | null,
-) {
+const translations = {
+  vi: {
+    unknownDate: "Chưa xác định",
+    seconds: "giây",
+    minutes: "phút",
+    title: "Lịch sử thi đấu",
+    description: "Theo dõi kết quả và thành tích của từng trận đấu.",
+    profile: "👤 Hồ sơ",
+    backToGame: "← Về trò chơi",
+    pageMatches: "Trận trên trang",
+    wins: "Chiến thắng",
+    losses: "Thất bại",
+    draws: "Trận hòa",
+    loadError: "Không thể tải lịch sử thi đấu.",
+    connectionError: "Không thể kết nối đến máy chủ.",
+    emptyTitle: "Chưa có lịch sử thi đấu",
+    emptyDescription:
+      "Hãy tham gia và hoàn thành trận đấu đầu tiên. Kết quả sẽ được lưu tự động tại đây.",
+    startPlaying: "Bắt đầu chơi",
+    win: "Chiến thắng",
+    loss: "Thất bại",
+    draw: "Hòa",
+    redTeam: "Đội đỏ",
+    blueTeam: "Đội xanh",
+    yourRedTeam: "Bạn: Đội đỏ",
+    yourBlueTeam: "Bạn: Đội xanh",
+    unknownTeam: "Không xác định",
+    personalScore: "Điểm cá nhân",
+    correctCount: "Câu đúng",
+    wrongCount: "Câu sai",
+    time: "Thời gian",
+    collapseTeams: "Thu gọn đội hình ▲",
+    showTeams: "Xem đội hình chi tiết ▼",
+    noPlayerData: "Không có dữ liệu người chơi.",
+    correct: "đúng",
+    wrong: "sai",
+    points: "điểm",
+    pageLabel: "Phân trang lịch sử",
+    page: "Trang",
+    total: "Tổng",
+    matches: "trận",
+    previous: "← Trang trước",
+    next: "Trang sau →",
+    modeBot: "Đấu với máy",
+    mode3v3: "Đấu 3 vs 3",
+    mode5v5: "Đấu 5 vs 5",
+    mode1v1: "Đấu 1 vs 1",
+    vs: "VS",
+  },
+  zh: {
+    unknownDate: "日期未知",
+    seconds: "秒",
+    minutes: "分钟",
+    title: "比赛记录",
+    description: "查看每场比赛的结果和成绩。",
+    profile: "👤 个人资料",
+    backToGame: "← 返回游戏",
+    pageMatches: "本页比赛",
+    wins: "胜利",
+    losses: "失败",
+    draws: "平局",
+    loadError: "无法加载比赛记录。",
+    connectionError: "无法连接服务器。",
+    emptyTitle: "暂无比赛记录",
+    emptyDescription: "参加并完成你的第一场比赛，结果会自动保存在这里。",
+    startPlaying: "开始游戏",
+    win: "胜利",
+    loss: "失败",
+    draw: "平局",
+    redTeam: "红队",
+    blueTeam: "蓝队",
+    yourRedTeam: "你：红队",
+    yourBlueTeam: "你：蓝队",
+    unknownTeam: "队伍未知",
+    personalScore: "个人得分",
+    correctCount: "答对题数",
+    wrongCount: "答错题数",
+    time: "用时",
+    collapseTeams: "收起队伍 ▲",
+    showTeams: "查看队伍详情 ▼",
+    noPlayerData: "没有玩家数据。",
+    correct: "答对",
+    wrong: "答错",
+    points: "分",
+    pageLabel: "比赛记录分页",
+    page: "第",
+    total: "共",
+    matches: "场比赛",
+    previous: "← 上一页",
+    next: "下一页 →",
+    modeBot: "人机对战",
+    mode3v3: "三对三",
+    mode5v5: "五对五",
+    mode1v1: "一对一",
+    vs: "对战",
+  },
+} as const;
+
+function formatDate(value: string | null, language: Language) {
   if (!value) {
-    return "Chưa xác định";
+    return translations[language].unknownDate;
   }
 
   const date = new Date(value);
 
-  if (
-    Number.isNaN(date.getTime())
-  ) {
-    return "Chưa xác định";
+  if (Number.isNaN(date.getTime())) {
+    return translations[language].unknownDate;
   }
 
   return new Intl.DateTimeFormat(
-    "vi-VN",
+    language === "zh" ? "zh-CN" : "vi-VN",
     {
       dateStyle: "medium",
       timeStyle: "short",
@@ -111,52 +182,41 @@ function formatDate(
   ).format(date);
 }
 
-function formatTime(seconds: number) {
-  const safeSeconds =
-    Math.max(0, seconds);
-
-  const minutes =
-    Math.floor(
-      safeSeconds / 60,
-    );
-
-  const remainingSeconds =
-    Math.round(
-      safeSeconds % 60,
-    );
+function formatTime(seconds: number, language: Language) {
+  const safeSeconds = Math.max(0, seconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = Math.round(safeSeconds % 60);
+  const t = translations[language];
 
   if (minutes <= 0) {
-    return `${remainingSeconds} giây`;
+    return `${remainingSeconds} ${t.seconds}`;
   }
 
-  return `${minutes} phút ${remainingSeconds} giây`;
+  return `${minutes} ${t.minutes} ${remainingSeconds} ${t.seconds}`;
 }
 
-function getModeLabel(
-  mode: HistoryMatch["mode"],
-) {
+function getModeLabel(mode: MatchMode, language: Language) {
+  const t = translations[language];
+
   switch (mode) {
     case "bot":
-      return "Đấu với máy";
-
+      return t.modeBot;
     case "3v3":
-      return "Đấu 3 vs 3";
-
+      return t.mode3v3;
     case "5v5":
-      return "Đấu 5 vs 5";
-
+      return t.mode5v5;
     default:
-      return "Đấu 1 vs 1";
+      return t.mode1v1;
   }
 }
 
-function getResultInformation(
-  result: HistoryMatch["result"],
-) {
+function getResultInformation(result: MatchResult, language: Language) {
+  const t = translations[language];
+
   switch (result) {
     case "win":
       return {
-        label: "Chiến thắng",
+        label: t.win,
         icon: "🏆",
         className:
           "border-emerald-300/25 bg-emerald-300/10 text-emerald-200",
@@ -164,32 +224,32 @@ function getResultInformation(
 
     case "loss":
       return {
-        label: "Thất bại",
+        label: t.loss,
         icon: "⚔",
-        className:
-          "border-red-300/25 bg-red-300/10 text-red-200",
+        className: "border-red-300/25 bg-red-300/10 text-red-200",
       };
 
     default:
       return {
-        label: "Hòa",
+        label: t.draw,
         icon: "🤝",
-        className:
-          "border-amber-300/25 bg-amber-300/10 text-amber-200",
+        className: "border-amber-300/25 bg-amber-300/10 text-amber-200",
       };
   }
 }
 
 export default function HistoryPage() {
   const router = useRouter();
+  const { language } = useLanguage();
+  const lang: Language = language === "zh" ? "zh" : "vi";
+  const t = translations[lang];
 
-  const [matches, setMatches] =
-    useState<HistoryMatch[]>([]);
+  // Giữ ngôn ngữ mới nhất cho thông báo mà không tải lại dữ liệu khi đổi ngôn ngữ.
+  const languageRef = useRef<Language>(lang);
+  languageRef.current = lang;
 
-  const [
-    pagination,
-    setPagination,
-  ] = useState<Pagination>({
+  const [matches, setMatches] = useState<HistoryMatch[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 10,
     total: 0,
@@ -197,26 +257,13 @@ export default function HistoryPage() {
     hasPreviousPage: false,
     hasNextPage: false,
   });
-
-  const [page, setPage] =
-    useState(1);
-
-  const [
-    expandedMatchId,
-    setExpandedMatchId,
-  ] = useState<string | null>(
-    null,
-  );
-
-  const [isLoading, setIsLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
+  const [page, setPage] = useState(1);
+  const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const controller =
-      new AbortController();
+    const controller = new AbortController();
 
     async function loadHistory() {
       try {
@@ -229,40 +276,29 @@ export default function HistoryPage() {
             method: "GET",
             credentials: "include",
             cache: "no-store",
-            signal:
-              controller.signal,
+            signal: controller.signal,
           },
         );
 
-        const result =
-          (await response.json()) as HistoryResponse;
+        const result = (await response.json()) as HistoryResponse;
 
         if (response.status === 401) {
-          router.replace(
-            "/login?returnTo=/history",
-          );
+          router.replace("/login?returnTo=/history");
           return;
         }
 
-        if (
-          !response.ok ||
-          !result.success
-        ) {
+        if (!response.ok || !result.success) {
           setError(
             result.message ||
-              "Không thể tải lịch sử thi đấu.",
+              translations[languageRef.current].loadError,
           );
           return;
         }
 
-        setMatches(
-          result.data ?? [],
-        );
+        setMatches(result.data ?? []);
 
         if (result.pagination) {
-          setPagination(
-            result.pagination,
-          );
+          setPagination(result.pagination);
         }
 
         window.scrollTo({
@@ -272,19 +308,14 @@ export default function HistoryPage() {
       } catch (requestError) {
         if (
           requestError instanceof Error &&
-          requestError.name ===
-            "AbortError"
+          requestError.name === "AbortError"
         ) {
           return;
         }
 
-        setError(
-          "Không thể kết nối đến máy chủ.",
-        );
+        setError(translations[languageRef.current].connectionError);
       } finally {
-        if (
-          !controller.signal.aborted
-        ) {
+        if (!controller.signal.aborted) {
           setIsLoading(false);
         }
       }
@@ -297,46 +328,38 @@ export default function HistoryPage() {
     };
   }, [page, router]);
 
-  const currentPageStatistics =
-    useMemo(() => {
-      return matches.reduce(
-        (statistics, match) => {
-          statistics.total += 1;
+  const currentPageStatistics = useMemo(() => {
+    return matches.reduce(
+      (statistics, match) => {
+        statistics.total += 1;
 
-          if (
-            match.result === "win"
-          ) {
-            statistics.wins += 1;
-          }
+        if (match.result === "win") {
+          statistics.wins += 1;
+        }
 
-          if (
-            match.result === "loss"
-          ) {
-            statistics.losses += 1;
-          }
+        if (match.result === "loss") {
+          statistics.losses += 1;
+        }
 
-          if (
-            match.result === "draw"
-          ) {
-            statistics.draws += 1;
-          }
+        if (match.result === "draw") {
+          statistics.draws += 1;
+        }
 
-          return statistics;
-        },
-        {
-          total: 0,
-          wins: 0,
-          losses: 0,
-          draws: 0,
-        },
-      );
-    }, [matches]);
+        return statistics;
+      },
+      {
+        total: 0,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+      },
+    );
+  }, [matches]);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#031521] px-4 py-6 text-white sm:px-6 sm:py-10">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -left-20 top-20 size-72 rounded-full bg-emerald-400/10 blur-3xl" />
-
         <div className="absolute -right-20 bottom-20 size-80 rounded-full bg-sky-400/10 blur-3xl" />
       </div>
 
@@ -349,12 +372,11 @@ export default function HistoryPage() {
               </span>
 
               <h1 className="mt-2 text-2xl font-black sm:text-4xl">
-                Lịch sử thi đấu
+                {t.title}
               </h1>
 
               <p className="mt-2 text-sm text-slate-400 sm:text-base">
-                Theo dõi kết quả và thành tích của
-                từng trận đấu.
+                {t.description}
               </p>
             </div>
 
@@ -363,14 +385,14 @@ export default function HistoryPage() {
                 href="/profile"
                 className="inline-flex min-h-11 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 text-sm font-black text-emerald-200 transition hover:bg-emerald-300/15"
               >
-                👤 Hồ sơ
+                {t.profile}
               </Link>
 
               <Link
                 href="/"
                 className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-black text-slate-200 transition hover:text-white"
               >
-                ← Về trò chơi
+                {t.backToGame}
               </Link>
             </div>
           </div>
@@ -378,42 +400,31 @@ export default function HistoryPage() {
           <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
               {
-                label:
-                  "Trận trên trang",
-                value:
-                  currentPageStatistics.total,
-                color:
-                  "text-sky-200",
+                label: t.pageMatches,
+                value: currentPageStatistics.total,
+                color: "text-sky-200",
               },
               {
-                label: "Chiến thắng",
-                value:
-                  currentPageStatistics.wins,
-                color:
-                  "text-emerald-200",
+                label: t.wins,
+                value: currentPageStatistics.wins,
+                color: "text-emerald-200",
               },
               {
-                label: "Thất bại",
-                value:
-                  currentPageStatistics.losses,
-                color:
-                  "text-red-200",
+                label: t.losses,
+                value: currentPageStatistics.losses,
+                color: "text-red-200",
               },
               {
-                label: "Trận hòa",
-                value:
-                  currentPageStatistics.draws,
-                color:
-                  "text-amber-200",
+                label: t.draws,
+                value: currentPageStatistics.draws,
+                color: "text-amber-200",
               },
             ].map((item) => (
               <article
                 key={item.label}
                 className="rounded-2xl border border-white/5 bg-white/5 p-4"
               >
-                <strong
-                  className={`text-2xl font-black ${item.color}`}
-                >
+                <strong className={`text-2xl font-black ${item.color}`}>
                   {item.value}
                 </strong>
 
@@ -436,9 +447,7 @@ export default function HistoryPage() {
 
         {isLoading ? (
           <div className="mt-6 grid gap-4">
-            {Array.from({
-              length: 3,
-            }).map((_, index) => (
+            {Array.from({ length: 3 }).map((_, index) => (
               <div
                 key={index}
                 className="h-64 animate-pulse rounded-[28px] border border-white/5 bg-white/5"
@@ -447,52 +456,35 @@ export default function HistoryPage() {
           </div>
         ) : matches.length === 0 ? (
           <section className="mt-6 rounded-[28px] border border-dashed border-emerald-300/20 bg-[#082333]/80 p-10 text-center sm:p-16">
-            <div className="text-6xl">
-              📭
-            </div>
+            <div className="text-6xl">📭</div>
 
-            <h2 className="mt-5 text-2xl font-black">
-              Chưa có lịch sử thi đấu
-            </h2>
+            <h2 className="mt-5 text-2xl font-black">{t.emptyTitle}</h2>
 
             <p className="mx-auto mt-3 max-w-md leading-7 text-slate-400">
-              Hãy tham gia và hoàn thành trận đấu
-              đầu tiên. Kết quả sẽ được lưu tự động
-              tại đây.
+              {t.emptyDescription}
             </p>
 
             <Link
               href="/"
               className="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl bg-emerald-300 px-6 font-black text-[#05252c]"
             >
-              Bắt đầu chơi
+              {t.startPlaying}
             </Link>
           </section>
         ) : (
           <section className="mt-6 grid gap-5">
             {matches.map((match) => {
-              const resultInformation =
-                getResultInformation(
-                  match.result,
-                );
-
-              const redPlayers =
-                match.players.filter(
-                  (player) =>
-                    player.team ===
-                    "red",
-                );
-
-              const bluePlayers =
-                match.players.filter(
-                  (player) =>
-                    player.team ===
-                    "blue",
-                );
-
-              const isExpanded =
-                expandedMatchId ===
-                match.id;
+              const resultInformation = getResultInformation(
+                match.result,
+                lang,
+              );
+              const redPlayers = match.players.filter(
+                (player) => player.team === "red",
+              );
+              const bluePlayers = match.players.filter(
+                (player) => player.team === "blue",
+              );
+              const isExpanded = expandedMatchId === match.id;
 
               return (
                 <article
@@ -506,18 +498,11 @@ export default function HistoryPage() {
                           <span
                             className={`rounded-full border px-3 py-1.5 text-xs font-black ${resultInformation.className}`}
                           >
-                            {
-                              resultInformation.icon
-                            }{" "}
-                            {
-                              resultInformation.label
-                            }
+                            {resultInformation.icon} {resultInformation.label}
                           </span>
 
                           <span className="rounded-full border border-sky-300/15 bg-sky-300/10 px-3 py-1.5 text-xs font-black text-sky-200">
-                            {getModeLabel(
-                              match.mode,
-                            )}
+                            {getModeLabel(match.mode, lang)}
                           </span>
 
                           <span className="rounded-full border border-amber-300/15 bg-amber-300/10 px-3 py-1.5 text-xs font-black text-amber-200">
@@ -527,18 +512,11 @@ export default function HistoryPage() {
 
                         <h2 className="mt-4 text-xl font-black sm:text-2xl">
                           {match.region.name}
-
-                          {match.region
-                            .chineseName && (
+                          {match.region.chineseName && (
                             <>
-                              {" "}
-                              ·{" "}
+                              {" · "}
                               <span lang="zh-CN">
-                                {
-                                  match
-                                    .region
-                                    .chineseName
-                                }
+                                {match.region.chineseName}
                               </span>
                             </>
                           )}
@@ -546,18 +524,13 @@ export default function HistoryPage() {
 
                         {match.region.pinyin && (
                           <p className="mt-1 text-sm italic text-slate-400">
-                            {
-                              match.region
-                                .pinyin
-                            }
+                            {match.region.pinyin}
                           </p>
                         )}
                       </div>
 
                       <time className="text-sm text-slate-500">
-                        {formatDate(
-                          match.completedAt,
-                        )}
+                        {formatDate(match.completedAt, lang)}
                       </time>
                     </div>
 
@@ -565,7 +538,7 @@ export default function HistoryPage() {
                     <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-3xl border border-white/5 bg-[#061b29] p-4 sm:gap-6 sm:p-6">
                       <div className="text-center">
                         <span className="text-xs font-black uppercase tracking-wider text-red-300">
-                          Đội đỏ
+                          {t.redTeam}
                         </span>
 
                         <strong className="mt-2 block text-3xl font-black text-red-200 sm:text-5xl">
@@ -573,41 +546,35 @@ export default function HistoryPage() {
                         </strong>
 
                         <small className="mt-2 block text-slate-500">
-                          {formatTime(
-                            match.redTime,
-                          )}
+                          {formatTime(match.redTime, lang)}
                         </small>
                       </div>
 
                       <div className="text-center">
                         <span className="block text-xs font-black text-slate-600">
-                          VS
+                          {t.vs}
                         </span>
 
                         <span
                           className={`mt-2 inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase ${
-                            match.currentUserTeam ===
-                            "red"
+                            match.currentUserTeam === "red"
                               ? "bg-red-300/10 text-red-200"
-                              : match.currentUserTeam ===
-                                  "blue"
+                              : match.currentUserTeam === "blue"
                                 ? "bg-blue-300/10 text-blue-200"
                                 : "bg-white/5 text-slate-400"
                           }`}
                         >
-                          {match.currentUserTeam ===
-                          "red"
-                            ? "Bạn: Đội đỏ"
-                            : match.currentUserTeam ===
-                                "blue"
-                              ? "Bạn: Đội xanh"
-                              : "Không xác định"}
+                          {match.currentUserTeam === "red"
+                            ? t.yourRedTeam
+                            : match.currentUserTeam === "blue"
+                              ? t.yourBlueTeam
+                              : t.unknownTeam}
                         </span>
                       </div>
 
                       <div className="text-center">
                         <span className="text-xs font-black uppercase tracking-wider text-blue-300">
-                          Đội xanh
+                          {t.blueTeam}
                         </span>
 
                         <strong className="mt-2 block text-3xl font-black text-blue-200 sm:text-5xl">
@@ -615,9 +582,7 @@ export default function HistoryPage() {
                         </strong>
 
                         <small className="mt-2 block text-slate-500">
-                          {formatTime(
-                            match.blueTime,
-                          )}
+                          {formatTime(match.blueTime, lang)}
                         </small>
                       </div>
                     </div>
@@ -626,35 +591,23 @@ export default function HistoryPage() {
                     <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
                       {[
                         {
-                          label:
-                            "Điểm cá nhân",
-                          value:
-                            match.playerResult
-                              .score,
+                          label: t.personalScore,
+                          value: match.playerResult.score,
                         },
                         {
-                          label:
-                            "Câu đúng",
-                          value:
-                            match.playerResult
-                              .correctAnswers,
+                          label: t.correctCount,
+                          value: match.playerResult.correctAnswers,
                         },
                         {
-                          label:
-                            "Câu sai",
-                          value:
-                            match.playerResult
-                              .wrongAnswers,
+                          label: t.wrongCount,
+                          value: match.playerResult.wrongAnswers,
                         },
                         {
-                          label:
-                            "Thời gian",
-                          value:
-                            formatTime(
-                              match
-                                .playerResult
-                                .totalTime,
-                            ),
+                          label: t.time,
+                          value: formatTime(
+                            match.playerResult.totalTime,
+                            lang,
+                          ),
                         },
                       ].map((item) => (
                         <div
@@ -675,36 +628,26 @@ export default function HistoryPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        setExpandedMatchId(
-                          isExpanded
-                            ? null
-                            : match.id,
-                        )
+                        setExpandedMatchId(isExpanded ? null : match.id)
                       }
                       className="mt-5 flex min-h-11 w-full items-center justify-center rounded-2xl border border-white/8 bg-white/5 px-4 text-sm font-black text-slate-300 transition hover:border-emerald-300/20 hover:text-emerald-200"
                     >
-                      {isExpanded
-                        ? "Thu gọn đội hình ▲"
-                        : "Xem đội hình chi tiết ▼"}
+                      {isExpanded ? t.collapseTeams : t.showTeams}
                     </button>
                   </div>
 
                   {isExpanded && (
                     <div className="grid gap-4 border-t border-white/5 bg-[#061b29]/80 p-5 md:grid-cols-2 sm:p-7">
                       <TeamPlayers
-                        title="Đội đỏ"
+                        title={t.redTeam}
                         team="red"
-                        players={
-                          redPlayers
-                        }
+                        players={redPlayers}
                       />
 
                       <TeamPlayers
-                        title="Đội xanh"
+                        title={t.blueTeam}
                         team="blue"
-                        players={
-                          bluePlayers
-                        }
+                        players={bluePlayers}
                       />
                     </div>
                   )}
@@ -714,62 +657,40 @@ export default function HistoryPage() {
           </section>
         )}
 
-        {!isLoading &&
-          pagination.total > 0 && (
+        {!isLoading && pagination.total > 0 && (
           <nav
             className="mt-7 flex flex-col items-center justify-between gap-4 rounded-3xl border border-white/5 bg-[#082333]/95 p-4 sm:flex-row"
-            aria-label="Phân trang lịch sử"
+            aria-label={t.pageLabel}
           >
             <p className="text-sm text-slate-400">
-              Trang{" "}
-              <strong className="text-white">
-                {pagination.page}
-              </strong>{" "}
-              /{" "}
-              <strong className="text-white">
-                {pagination.totalPages}
-              </strong>{" "}
-              · Tổng{" "}
-              <strong className="text-emerald-300">
-                {pagination.total}
-              </strong>{" "}
-              trận
+              {t.page}{" "}
+              <strong className="text-white">{pagination.page}</strong> /{" "}
+              <strong className="text-white">{pagination.totalPages}</strong>
+              {" · "}
+              {t.total}{" "}
+              <strong className="text-emerald-300">{pagination.total}</strong>{" "}
+              {t.matches}
             </p>
 
             <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
               <button
                 type="button"
-                disabled={
-                  !pagination.hasPreviousPage
-                }
+                disabled={!pagination.hasPreviousPage}
                 onClick={() =>
-                  setPage(
-                    (previous) =>
-                      Math.max(
-                        1,
-                        previous - 1,
-                      ),
-                  )
+                  setPage((previous) => Math.max(1, previous - 1))
                 }
                 className="min-h-11 rounded-xl border border-white/10 bg-white/5 px-5 text-sm font-black text-slate-200 transition hover:border-emerald-300/20 disabled:cursor-not-allowed disabled:opacity-30"
               >
-                ← Trang trước
+                {t.previous}
               </button>
 
               <button
                 type="button"
-                disabled={
-                  !pagination.hasNextPage
-                }
-                onClick={() =>
-                  setPage(
-                    (previous) =>
-                      previous + 1,
-                  )
-                }
+                disabled={!pagination.hasNextPage}
+                onClick={() => setPage((previous) => previous + 1)}
                 className="min-h-11 rounded-xl bg-emerald-300 px-5 text-sm font-black text-[#05252c] transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-30"
               >
-                Trang sau →
+                {t.next}
               </button>
             </div>
           </nav>
@@ -788,8 +709,10 @@ function TeamPlayers({
   team: "red" | "blue";
   players: HistoryPlayer[];
 }) {
-  const isRed =
-    team === "red";
+  const { language } = useLanguage();
+  const lang: Language = language === "zh" ? "zh" : "vi";
+  const t = translations[lang];
+  const isRed = team === "red";
 
   return (
     <section
@@ -801,51 +724,39 @@ function TeamPlayers({
     >
       <h3
         className={`font-black ${
-          isRed
-            ? "text-red-200"
-            : "text-blue-200"
+          isRed ? "text-red-200" : "text-blue-200"
         }`}
       >
-        {isRed ? "🔴" : "🔵"}{" "}
-        {title}
+        {isRed ? "🔴" : "🔵"} {title}
       </h3>
 
       <div className="mt-4 space-y-2">
         {players.length === 0 ? (
           <p className="rounded-xl bg-white/5 p-3 text-sm text-slate-500">
-            Không có dữ liệu người chơi.
+            {t.noPlayerData}
           </p>
         ) : (
           players.map((player) => (
             <article
-              key={
-                player.id ||
-                `${player.name}-${player.team}`
-              }
+              key={player.id || `${player.name}-${player.team}`}
               className="flex items-center justify-between gap-3 rounded-2xl bg-[#082333]/90 p-3"
             >
               <div className="min-w-0">
                 <strong className="block truncate text-sm text-white">
-                  {player.isBot
-                    ? "🤖 "
-                    : "👤 "}
+                  {player.isBot ? "🤖 " : "👤 "}
                   {player.name}
                 </strong>
 
                 <small className="text-slate-500">
-                  {player.correctAnswers} đúng ·{" "}
-                  {player.wrongAnswers} sai
+                  {player.correctAnswers} {t.correct} · {player.wrongAnswers}{" "}
+                  {t.wrong}
                 </small>
               </div>
 
               <strong
-                className={
-                  isRed
-                    ? "text-red-200"
-                    : "text-blue-200"
-                }
+                className={isRed ? "text-red-200" : "text-blue-200"}
               >
-                {player.score} điểm
+                {player.score} {t.points}
               </strong>
             </article>
           ))

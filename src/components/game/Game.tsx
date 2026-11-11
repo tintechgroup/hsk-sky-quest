@@ -16,6 +16,7 @@ import {
 import ChinaFlightMap from "@/components/game/ChinaFlightMap";
 import LootScreen from "@/components/game/LootScreen";
 import WelcomeScreen from "@/components/game/WelcomeScreen";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 import {
   regions as fallbackRegions,
@@ -384,6 +385,17 @@ export default function Game() {
   const router =
     useRouter();
 
+  const { language } =
+    useLanguage();
+
+  const localize = (
+    vietnamese: string,
+    chinese: string,
+  ) =>
+    language === "zh"
+      ? chinese
+      : vietnamese;
+
   const [
     phase,
     setPhase,
@@ -546,8 +558,10 @@ export default function Game() {
           !result.success
         ) {
           throw new Error(
-            result.message ||
+            localize(
               "Không thể tải danh sách tỉnh.",
+              "无法加载省份列表。",
+            ),
           );
         }
 
@@ -765,7 +779,10 @@ export default function Game() {
           );
 
           setAuthMessage(
-            "Không thể kiểm tra phiên đăng nhập.",
+            localize(
+              "Không thể kiểm tra phiên đăng nhập.",
+              "无法检查登录状态。",
+            ),
           );
         }
       } finally {
@@ -881,7 +898,10 @@ export default function Game() {
       0
     ) {
       setAuthMessage(
-        "Chưa có tỉnh/thành nào để bắt đầu hành trình.",
+        localize(
+          "Chưa có tỉnh/thành nào để bắt đầu hành trình.",
+          "目前没有可供开始旅程的省份或城市。",
+        ),
       );
 
       return;
@@ -963,7 +983,10 @@ export default function Game() {
       );
 
       setAuthMessage(
-        "Không thể kiểm tra tài khoản. Vui lòng thử lại.",
+        localize(
+          "Không thể kiểm tra tài khoản. Vui lòng thử lại.",
+          "无法验证账户，请重试。",
+        ),
       );
     } finally {
       setStartingJourney(
@@ -987,7 +1010,10 @@ export default function Game() {
 
     const confirmed =
       window.confirm(
-        "Bạn có chắc muốn đăng xuất khỏi tài khoản này?",
+        localize(
+          "Bạn có chắc muốn đăng xuất khỏi tài khoản này?",
+          "确定要退出当前账户吗？",
+        ),
       );
 
     if (
@@ -1040,8 +1066,10 @@ export default function Game() {
         !result?.success
       ) {
         throw new Error(
-          result?.message ||
+          localize(
             "Không thể đăng xuất.",
+            "退出登录失败。",
+          ),
         );
       }
 
@@ -1062,7 +1090,10 @@ export default function Game() {
       );
 
       setAuthMessage(
-        "Bạn đã đăng xuất.",
+        localize(
+          "Bạn đã đăng xuất.",
+          "你已退出登录。",
+        ),
       );
 
       window.history
@@ -1083,7 +1114,10 @@ export default function Game() {
         error instanceof
         Error
           ? error.message
-          : "Không thể đăng xuất.",
+          : localize(
+              "Không thể đăng xuất.",
+              "退出登录失败。",
+            ),
       );
     } finally {
       setLoggingOut(
@@ -1175,12 +1209,18 @@ export default function Game() {
                 <div className="min-w-0">
                   {authLoading ? (
                     <p className="text-sm font-semibold text-slate-300">
-                      Đang kiểm tra tài khoản...
+                      {localize(
+                        "Đang kiểm tra tài khoản...",
+                        "正在检查账户…",
+                      )}
                     </p>
                   ) : currentUser ? (
                     <>
                       <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-300">
-                        Chào mừng trở lại
+                        {localize(
+                          "Chào mừng trở lại",
+                          "欢迎回来",
+                        )}
                       </p>
 
                       <p className="truncate text-base font-black text-white sm:text-lg">
@@ -1202,7 +1242,10 @@ export default function Game() {
                           {
                             totalMatches
                           }{" "}
-                          trận
+                          {localize(
+                            "trận",
+                            "场比赛",
+                          )}
                         </span>
 
                         <span className="rounded-full bg-emerald-300/10 px-2.5 py-1 text-emerald-200">
@@ -1210,7 +1253,10 @@ export default function Game() {
                           {
                             wins
                           }{" "}
-                          thắng
+                          {localize(
+                            "thắng",
+                            "胜场",
+                          )}
                         </span>
 
                         <span className="rounded-full bg-amber-300/10 px-2.5 py-1 text-amber-200">
@@ -1219,7 +1265,10 @@ export default function Game() {
                             currentUser.totalScore ??
                             0
                           }{" "}
-                          điểm
+                          {localize(
+                            "điểm",
+                            "分",
+                          )}
                         </span>
 
                       </div>
@@ -1227,11 +1276,17 @@ export default function Game() {
                   ) : (
                     <>
                       <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-300">
-                        Chưa đăng nhập
+                        {localize(
+                          "Chưa đăng nhập",
+                          "尚未登录",
+                        )}
                       </p>
 
                       <p className="text-sm text-slate-300">
-                        Bạn cần đăng nhập để lưu lịch sử và tham gia thi đấu.
+                        {localize(
+                          "Bạn cần đăng nhập để lưu lịch sử và tham gia thi đấu.",
+                          "请先登录，以保存记录并参与对战。",
+                        )}
                       </p>
                     </>
                   )}
@@ -1245,7 +1300,10 @@ export default function Game() {
                         href="/profile"
                         className="inline-flex min-h-10 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-4 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/15 sm:text-sm"
                       >
-                        👤 Hồ sơ
+                        {localize(
+                          "👤 Hồ sơ",
+                          "👤 个人资料",
+                        )}
                       </Link>
 
                       {currentUser.role ===
@@ -1254,7 +1312,10 @@ export default function Game() {
                           href="/admin"
                           className="inline-flex min-h-10 items-center justify-center rounded-xl border border-amber-300/20 bg-amber-300/10 px-4 text-xs font-black text-amber-200 transition hover:bg-amber-300/15 sm:text-sm"
                         >
-                          🛠️ Admin
+                          {localize(
+                            "🛠️ Admin",
+                            "🛠️ 管理员",
+                          )}
                         </Link>
                       )}
 
@@ -1270,8 +1331,14 @@ export default function Game() {
                       >
                         {
                           loggingOut
-                            ? "Đang thoát..."
-                            : "↪ Đăng xuất"
+                            ? localize(
+                                "Đang thoát...",
+                                "正在退出…",
+                              )
+                            : localize(
+                                "↪ Đăng xuất",
+                                "↪ 退出登录",
+                              )
                         }
                       </button>
                     </>
@@ -1281,14 +1348,20 @@ export default function Game() {
                         href="/login"
                         className="inline-flex min-h-10 items-center justify-center rounded-xl bg-emerald-300 px-4 text-sm font-black text-[#062d32]"
                       >
-                        Đăng nhập
+                        {localize(
+                          "Đăng nhập",
+                          "登录",
+                        )}
                       </Link>
 
                       <Link
                         href="/register"
                         className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-black text-white"
                       >
-                        Đăng ký
+                        {localize(
+                          "Đăng ký",
+                          "注册",
+                        )}
                       </Link>
                     </>
                   )}
@@ -1334,10 +1407,19 @@ export default function Game() {
                   <p className="mt-4 font-black">
                     {
                       startingJourney
-                        ? "Đang bắt đầu hành trình..."
+                        ? localize(
+                            "Đang bắt đầu hành trình...",
+                            "正在开始旅程…",
+                          )
                         : regionsLoading
-                          ? "Đang tải bản đồ..."
-                          : "Đang kiểm tra đăng nhập..."
+                          ? localize(
+                              "Đang tải bản đồ...",
+                              "正在加载地图…",
+                            )
+                          : localize(
+                              "Đang kiểm tra đăng nhập...",
+                              "正在检查登录状态…",
+                            )
                     }
                   </p>
 
@@ -1369,7 +1451,10 @@ export default function Game() {
                   </strong>
 
                   <span>
-                    Học tiếng Trung qua trải nghiệm
+                    {localize(
+                      "Học tiếng Trung qua trải nghiệm",
+                      "在体验中学习中文",
+                    )}
                   </span>
                 </div>
 
@@ -1383,7 +1468,10 @@ export default function Game() {
                     className="hidden rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-right transition hover:border-cyan-300/30 hover:bg-cyan-300/10 sm:block"
                   >
                     <span className="block text-xs text-slate-400">
-                      Người chơi
+                      {localize(
+                        "Người chơi",
+                        "玩家",
+                      )}
                     </span>
 
                     <strong className="block max-w-40 truncate text-sm text-white">
@@ -1406,7 +1494,10 @@ export default function Game() {
 
                 <div className="game-player-information">
                   <span>
-                    Trình độ hiện tại
+                    {localize(
+                      "Trình độ hiện tại",
+                      "当前等级",
+                    )}
                   </span>
 
                   <strong>
@@ -1444,20 +1535,28 @@ export default function Game() {
 
                 <div>
                   <span className="flight-region-label">
-                    KHÁM PHÁ VÙNG ĐẤT
+                    {localize(
+                      "KHÁM PHÁ VÙNG ĐẤT",
+                      "探索这片土地",
+                    )}
                   </span>
 
                   <h2>
-                    {
-                      currentRegion.name
-                    }{" "}
-                    ·{" "}
+                    {language === "zh"
+                      ? currentRegion.chineseName
+                      : currentRegion.name}
 
-                    <span lang="zh-CN">
-                      {
-                        currentRegion.chineseName
-                      }
-                    </span>
+                    {language !== "zh" &&
+                      currentRegion.chineseName && (
+                        <>
+                          {" "}·{" "}
+                          <span lang="zh-CN">
+                            {
+                              currentRegion.chineseName
+                            }
+                          </span>
+                        </>
+                      )}
                   </h2>
 
                   <p>
@@ -1474,7 +1573,10 @@ export default function Game() {
                     restart
                   }
                 >
-                  ← Quay lại
+                  {localize(
+                    "← Quay lại",
+                    "← 返回",
+                  )}
                 </button>
 
               </div>
@@ -1488,7 +1590,10 @@ export default function Game() {
 
                   <div>
                     <span>
-                      ĐỊA LÝ
+                      {localize(
+                        "ĐỊA LÝ",
+                        "地理",
+                      )}
                     </span>
 
                     <p>
@@ -1506,7 +1611,10 @@ export default function Game() {
 
                   <div>
                     <span>
-                      VĂN HÓA
+                      {localize(
+                        "VĂN HÓA",
+                        "文化",
+                      )}
                     </span>
 
                     <p>
@@ -1524,7 +1632,10 @@ export default function Game() {
 
                   <div>
                     <span>
-                      ĐỊA DANH NỔI BẬT
+                      {localize(
+                        "ĐỊA DANH NỔI BẬT",
+                        "著名景点",
+                      )}
                     </span>
 
                     <p>
@@ -1538,7 +1649,10 @@ export default function Game() {
               </div>
 
               <p className="flight-research-note">
-                Nội dung giới thiệu giúp người chơi tiếp nhận kiến thức địa lý và văn hóa trước khi quyết định nhảy dù.
+                {localize(
+                  "Nội dung giới thiệu giúp người chơi tiếp nhận kiến thức địa lý và văn hóa trước khi quyết định nhảy dù.",
+                  "在决定跳伞前，玩家可以先了解当地的地理与文化。",
+                )}
               </p>
 
             </section>
@@ -1565,7 +1679,10 @@ export default function Game() {
                 restart
               }
             >
-              ← Quay lại
+              {localize(
+                "← Quay lại",
+                "← 返回",
+              )}
             </button>
 
             <div className="parachute-cloud cloud-one">
@@ -1583,14 +1700,20 @@ export default function Game() {
             </div>
 
             <span className="parachute-label">
-              ĐANG TIẾP CẬN ĐIỂM ĐẾN
+              {localize(
+                "ĐANG TIẾP CẬN ĐIỂM ĐẾN",
+                "正在接近目的地",
+              )}
             </span>
 
             <h2>
-              Đang nhảy xuống{" "}
-              {
-                landingRegion.name
-              }
+              {localize(
+                "Đang nhảy xuống",
+                "正在跳向",
+              )}{" "}
+              {language === "zh"
+                ? landingRegion.chineseName
+                : landingRegion.name}
             </h2>
 
             <p>
@@ -1610,7 +1733,10 @@ export default function Game() {
             </div>
 
             <small>
-              Chuẩn bị tiếp đất và thu thập vật phẩm
+              {localize(
+                "Chuẩn bị tiếp đất và thu thập vật phẩm",
+                "准备着陆并收集道具",
+              )}
             </small>
 
           </section>
