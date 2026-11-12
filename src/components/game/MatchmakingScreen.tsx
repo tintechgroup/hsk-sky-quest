@@ -650,7 +650,7 @@ export default function MatchmakingScreen({
     statusMessage,
     setStatusMessage,
   ] =
-    useState(
+    useState<string>(
       mode === "bot"
         ? ui.findingBots
         : ui.findingPlayers,

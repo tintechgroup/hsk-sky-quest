@@ -37,6 +37,7 @@ interface TeamBattleScreenProps {
   match: MatchmakingMatch;
   initialInventory: Inventory;
   onRestart: () => void;
+  language?: "vi" | "zh";
 }
 
 type BattleStage =
@@ -254,10 +255,14 @@ export default function TeamBattleScreen({
   match,
   initialInventory,
   onRestart,
+  language: languageProp,
 }: TeamBattleScreenProps) {
-  const { language } = useLanguage();
+  const { language: contextLanguage } = useLanguage();
+
   const currentLanguage: BattleLanguage =
-    language === "zh" ? "zh" : "vi";
+    languageProp ??
+    (contextLanguage === "zh" ? "zh" : "vi");
+
   const ui = TEAM_BATTLE_TEXT[currentLanguage];
 
   const {
