@@ -780,8 +780,9 @@ export default function TeamBattleScreen({
         }
       },
       [
-        currentLanguage,
         liveMatch.id,
+        ui.loadResultFailed,
+        ui.waitingResult,
       ],
     );
 
@@ -1270,10 +1271,12 @@ export default function TeamBattleScreen({
       },
       [
         correctAnswers,
-        currentLanguage,
         liveMatch.id,
         submitting,
         totalBattleTime,
+        ui.resultSavedMessage,
+        ui.saveResultFailed,
+        ui.savingResult,
         wrongAnswers,
       ],
     );

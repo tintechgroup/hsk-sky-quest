@@ -5,7 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
@@ -95,8 +95,9 @@ const LanguageContext = createContext<LanguageContextValue | undefined>(
 );
 
 const STORAGE_KEY = "hsk-language";
+const LANGUAGE_CHANGE_EVENT = "hsk-language-change";
 
-function readSavedLanguage(): Language {
+function getLanguageSnapshot(): Language {
   try {
     return window.localStorage.getItem(STORAGE_KEY) === "zh" ? "zh" : "vi";
   } catch {
@@ -104,30 +105,49 @@ function readSavedLanguage(): Language {
   }
 }
 
+function getServerLanguageSnapshot(): Language {
+  return "vi";
+}
+
+function subscribeToLanguage(callback: () => void) {
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY || event.key === null) {
+      callback();
+    }
+  };
+
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener(LANGUAGE_CHANGE_EVENT, callback);
+
+  return () => {
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener(LANGUAGE_CHANGE_EVENT, callback);
+  };
+}
+
+function saveLanguage(language: Language) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, language);
+  } catch {
+    // Vẫn cập nhật ngôn ngữ trong trang nếu localStorage bị chặn.
+  }
+
+  window.dispatchEvent(new Event(LANGUAGE_CHANGE_EVENT));
+}
+
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>("vi");
-
-  useEffect(() => {
-    // Đọc lựa chọn đã lưu sau khi trang được dựng để tránh lệch ngôn ngữ khi hydrate.
-    const timer = window.setTimeout(() => {
-      setLanguageState(readSavedLanguage());
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, []);
+  const language = useSyncExternalStore(
+    subscribeToLanguage,
+    getLanguageSnapshot,
+    getServerLanguageSnapshot,
+  );
 
   useEffect(() => {
     document.documentElement.lang = language === "zh" ? "zh-CN" : "vi";
   }, [language]);
 
   const setLanguage = useCallback((nextLanguage: Language) => {
-    setLanguageState(nextLanguage);
-
-    try {
-      window.localStorage.setItem(STORAGE_KEY, nextLanguage);
-    } catch {
-      // Ứng dụng vẫn đổi ngôn ngữ nếu trình duyệt chặn localStorage.
-    }
+    saveLanguage(nextLanguage);
   }, []);
 
   const t = useCallback(
@@ -147,9 +167,7 @@ export function useLanguage() {
   const context = useContext(LanguageContext);
 
   if (!context) {
-    throw new Error(
-      "useLanguage phải được sử dụng bên trong LanguageProvider.",
-    );
+    throw new Error("useLanguage phải được sử dụng bên trong LanguageProvider.");
   }
 
   return context;
@@ -160,8 +178,8 @@ function LanguageSwitcher() {
   const { language, setLanguage } = useLanguage();
 
   const isAdminPage =
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/tintech-admin");
+    pathname?.startsWith("/admin") ||
+    pathname?.startsWith("/tintech-admin");
 
   if (isAdminPage) {
     return null;
@@ -170,21 +188,15 @@ function LanguageSwitcher() {
   const nextLanguage: Language = language === "vi" ? "zh" : "vi";
   const buttonLabel =
     language === "vi" ? "🇻🇳 VI · 中文" : "🇨🇳 中文 · VI";
+  const switchLabel =
+    language === "vi" ? "Chuyển sang tiếng Trung" : "切换到越南语";
 
   return (
     <button
       type="button"
       onClick={() => setLanguage(nextLanguage)}
-      aria-label={
-        language === "vi"
-          ? "Chuyển sang tiếng Trung"
-          : "切换到越南语"
-      }
-      title={
-        language === "vi"
-          ? "Chuyển sang tiếng Trung"
-          : "切换到越南语"
-      }
+      aria-label={switchLabel}
+      title={switchLabel}
       className="fixed bottom-5 right-5 z-[200] inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-slate-950/90 px-4 text-sm font-bold text-white shadow-xl backdrop-blur-md transition hover:border-emerald-300/50 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
     >
       {buttonLabel}

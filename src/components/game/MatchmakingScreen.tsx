@@ -603,7 +603,10 @@ export default function MatchmakingScreen({
       : region.name;
 
   const uiRef = useRef(ui);
-  uiRef.current = ui;
+
+  useEffect(() => {
+    uiRef.current = ui;
+  }, [ui]);
 
   const modeInformation = {
     ...MODE_INFORMATION[mode],

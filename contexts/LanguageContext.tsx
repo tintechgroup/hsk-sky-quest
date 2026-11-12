@@ -2,10 +2,12 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
+  type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
 
@@ -138,45 +140,82 @@ interface LanguageContextValue {
 const LanguageContext =
   createContext<LanguageContextValue | null>(null);
 
+const STORAGE_KEY = "hsk-language";
+const LANGUAGE_CHANGE_EVENT = "hsk-language-change";
+
+function getLanguageSnapshot(): Language {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) === "zh"
+      ? "zh"
+      : "vi";
+  } catch {
+    return "vi";
+  }
+}
+
+function getServerLanguageSnapshot(): Language {
+  return "vi";
+}
+
+function subscribeToLanguage(callback: () => void) {
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY || event.key === null) {
+      callback();
+    }
+  };
+
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener(LANGUAGE_CHANGE_EVENT, callback);
+
+  return () => {
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener(LANGUAGE_CHANGE_EVENT, callback);
+  };
+}
+
+function saveLanguage(language: Language) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, language);
+  } catch {
+    // Ứng dụng vẫn hoạt động nếu trình duyệt chặn localStorage.
+  }
+
+  window.dispatchEvent(new Event(LANGUAGE_CHANGE_EVENT));
+}
+
 export function LanguageProvider({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const pathname = usePathname();
-  const [language, setLanguageState] =
-    useState<Language>("vi");
-  const [isReady, setIsReady] = useState(false);
+
+  const language = useSyncExternalStore(
+    subscribeToLanguage,
+    getLanguageSnapshot,
+    getServerLanguageSnapshot,
+  );
 
   useEffect(() => {
-    const savedLanguage =
-      localStorage.getItem("hsk-language");
-
-    if (savedLanguage === "vi" || savedLanguage === "zh") {
-      setLanguageState(savedLanguage);
-    }
-
-    setIsReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isReady) return;
-
-    localStorage.setItem("hsk-language", language);
     document.documentElement.lang =
       language === "zh" ? "zh-CN" : "vi";
-  }, [language, isReady]);
+  }, [language]);
+
+  const setLanguage = useCallback((nextLanguage: Language) => {
+    saveLanguage(nextLanguage);
+  }, []);
 
   const value = useMemo<LanguageContextValue>(
     () => ({
       language,
-      setLanguage: setLanguageState,
+      setLanguage,
       t: (key) => messages[language][key],
     }),
-    [language],
+    [language, setLanguage],
   );
 
-  const isAdminPage = pathname.startsWith("/admin");
+  const isAdminPage =
+    pathname?.startsWith("/admin") ?? false;
 
   return (
     <LanguageContext.Provider value={value}>
@@ -185,11 +224,11 @@ export function LanguageProvider({
       {!isAdminPage && (
         <div
           className="fixed bottom-4 right-4 z-[120] flex rounded-full border border-white/25 bg-slate-950/90 p-1 text-xs font-black shadow-xl backdrop-blur-md"
-          aria-label="Chọn ngôn ngữ"
+          aria-label={messages[language].chooseLanguage}
         >
           <button
             type="button"
-            onClick={() => setLanguageState("vi")}
+            onClick={() => setLanguage("vi")}
             aria-pressed={language === "vi"}
             className={`rounded-full px-3 py-2 transition ${
               language === "vi"
@@ -202,7 +241,7 @@ export function LanguageProvider({
 
           <button
             type="button"
-            onClick={() => setLanguageState("zh")}
+            onClick={() => setLanguage("zh")}
             aria-pressed={language === "zh"}
             className={`rounded-full px-3 py-2 transition ${
               language === "zh"

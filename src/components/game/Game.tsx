@@ -388,6 +388,14 @@ export default function Game() {
   const { language } =
     useLanguage();
 
+  // Giữ ngôn ngữ mới nhất cho các effect chạy một lần,
+  // không làm gọi lại API khi đổi ngôn ngữ.
+  const languageRef = useRef(language);
+
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
+
   const localize = (
     vietnamese: string,
     chinese: string,
@@ -558,10 +566,9 @@ export default function Game() {
           !result.success
         ) {
           throw new Error(
-            localize(
-              "Không thể tải danh sách tỉnh.",
-              "无法加载省份列表。",
-            ),
+            languageRef.current === "zh"
+              ? "无法加载省份列表。"
+              : "Không thể tải danh sách tỉnh.",
           );
         }
 
@@ -779,10 +786,9 @@ export default function Game() {
           );
 
           setAuthMessage(
-            localize(
-              "Không thể kiểm tra phiên đăng nhập.",
-              "无法检查登录状态。",
-            ),
+            languageRef.current === "zh"
+              ? "无法检查登录状态。"
+              : "Không thể kiểm tra phiên đăng nhập.",
           );
         }
       } finally {

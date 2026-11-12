@@ -246,7 +246,10 @@ export default function HistoryPage() {
 
   // Giữ ngôn ngữ mới nhất cho thông báo mà không tải lại dữ liệu khi đổi ngôn ngữ.
   const languageRef = useRef<Language>(lang);
-  languageRef.current = lang;
+
+  useEffect(() => {
+    languageRef.current = lang;
+  }, [lang]);
 
   const [matches, setMatches] = useState<HistoryMatch[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
